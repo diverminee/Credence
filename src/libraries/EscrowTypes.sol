@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+/// @title Escrow Types Library
+/// @notice Shared types and enums for escrow system
+library EscrowTypes {
+    // ============ Enums ============
+    enum State {
+        DRAFT,
+        FUNDED,
+        RELEASED,
+        REFUNDED,
+        DISPUTED
+    }
+
+    enum UserTier {
+        BRONZE,
+        SILVER,
+        GOLD,
+        DIAMOND
+    }
+
+    // ============ Structs ============
+    /// @notice Core escrow transaction data
+    struct EscrowTransaction {
+        address buyer;
+        address seller;
+        address arbiter;
+        address token; // address(0) for ETH, otherwise ERC20 token address
+        uint256 amount;
+        uint256 tradeId; // External trade identifier
+        bytes32 tradeDataHash; // Hash of trade documents
+        State state;
+    }
+}
