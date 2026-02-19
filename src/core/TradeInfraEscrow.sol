@@ -14,8 +14,9 @@ contract TradeInfraEscrow is DisputeEscrow {
     // ============ Constructor ============
     constructor(
         address _oracleAddress,
-        address _feeRecipient
-    ) DisputeEscrow(_oracleAddress, _feeRecipient) {}
+        address _feeRecipient,
+        address _protocolArbiter
+    ) DisputeEscrow(_oracleAddress, _feeRecipient, _protocolArbiter) {}
 
     // ============ Events ============
     event DeliveryConfirmed(uint256 indexed escrowId);

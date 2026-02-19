@@ -10,18 +10,38 @@ contract DisputeEscrow is BaseEscrow {
     // ============ Errors ============
     error NotAParty();
     error NotTheArbiter();
+    error NotProtocolArbiter();
     error TooManyDisputes();
     error InvalidRuling();
+    error DisputeNotExpired(); // Primary arbiter deadline not passed yet
+    error EscalationNotExpired(); // Protocol arbiter deadline not passed yet
+    error NotEscalated(); // Escrow is not in ESCALATED state
 
     // ============ Constructor ============
     constructor(
         address _oracleAddress,
-        address _feeRecipient
-    ) BaseEscrow(_oracleAddress, _feeRecipient) {}
+        address _feeRecipient,
+        address _protocolArbiter
+    ) BaseEscrow(_oracleAddress, _feeRecipient, _protocolArbiter) {}
 
     // ============ Events ============
-    event DisputeRaised(uint256 indexed escrowId, address indexed initiator);
+    event DisputeRaised(
+        uint256 indexed escrowId,
+        address indexed initiator,
+        uint256 deadline
+    );
     event DisputeResolved(uint256 indexed escrowId, uint8 indexed ruling);
+    event DisputeEscalated(
+        uint256 indexed escrowId,
+        address indexed escalatedBy,
+        uint256 newDeadline
+    );
+    event EscalationResolved(uint256 indexed escrowId, uint8 indexed ruling);
+    event TimeoutClaimed(
+        uint256 indexed escrowId,
+        address indexed claimedBy,
+        address indexed refundedTo
+    );
 
     // ============ Modifiers ============
 
@@ -68,8 +88,14 @@ contract DisputeEscrow is BaseEscrow {
         // Track dispute initiation
         disputesInitiated[initiator]++;
 
+        // Set primary arbiter deadline (14 days)
+        escrows[_escrowId].disputeDeadline = block.timestamp + DISPUTE_TIMELOCK;
         escrows[_escrowId].state = EscrowTypes.State.DISPUTED;
-        emit DisputeRaised(_escrowId, initiator);
+        emit DisputeRaised(
+            _escrowId,
+            initiator,
+            escrows[_escrowId].disputeDeadline
+        );
     }
 
     /// @notice Resolve dispute with arbiter ruling
@@ -95,6 +121,66 @@ contract DisputeEscrow is BaseEscrow {
         }
 
         emit DisputeResolved(_escrowId, _ruling);
+    }
+
+    /// @notice Escalate to protocol arbiter after primary arbiter misses 14-day deadline
+    /// @dev Callable by either buyer or seller once DISPUTE_TIMELOCK has passed
+    /// @param _escrowId ID of the escrow
+    function escalateToProtocol(
+        uint256 _escrowId
+    ) external onlyParty(_escrowId) nonReentrant {
+        EscrowTypes.EscrowTransaction storage txn = escrows[_escrowId];
+        if (txn.state != EscrowTypes.State.DISPUTED) revert InvalidState();
+        if (block.timestamp < txn.disputeDeadline) revert DisputeNotExpired();
+
+        // Upgrade state and give protocol arbiter 7 days to act
+        txn.state = EscrowTypes.State.ESCALATED;
+        txn.disputeDeadline = block.timestamp + ESCALATION_TIMELOCK;
+
+        emit DisputeEscalated(_escrowId, msg.sender, txn.disputeDeadline);
+    }
+
+    /// @notice Protocol arbiter resolves an escalated dispute
+    /// @param _escrowId ID of the escrow
+    /// @param _ruling Ruling (1 = release to seller, 2 = refund to buyer)
+    function resolveEscalation(
+        uint256 _escrowId,
+        uint8 _ruling
+    ) external nonReentrant {
+        if (msg.sender != protocolArbiter) revert NotProtocolArbiter();
+        if (!escrowExists[_escrowId]) revert EscrowNotFound();
+        EscrowTypes.EscrowTransaction storage txn = escrows[_escrowId];
+        if (txn.state != EscrowTypes.State.ESCALATED) revert NotEscalated();
+
+        if (_ruling == 1) {
+            disputesLost[txn.buyer]++;
+            _releaseFunds(_escrowId, txn.seller);
+        } else if (_ruling == 2) {
+            disputesLost[txn.seller]++;
+            _refundFunds(_escrowId, txn.buyer);
+        } else {
+            revert InvalidRuling();
+        }
+
+        emit EscalationResolved(_escrowId, _ruling);
+    }
+
+    /// @notice Final fallback: full refund to buyer if protocol arbiter also goes silent
+    /// @dev Callable by anyone after ESCALATION_TIMELOCK expires. Funds never permanently locked.
+    /// @param _escrowId ID of the escrow
+    function claimTimeout(uint256 _escrowId) external nonReentrant {
+        if (!escrowExists[_escrowId]) revert EscrowNotFound();
+        EscrowTypes.EscrowTransaction storage txn = escrows[_escrowId];
+        if (txn.state != EscrowTypes.State.ESCALATED) revert NotEscalated();
+        if (block.timestamp < txn.disputeDeadline)
+            revert EscalationNotExpired();
+
+        address buyer = txn.buyer;
+        // Final safety net: always refund to buyer (Letter of Credit principle:
+        // payment follows confirmed delivery; if nobody can confirm, capital returns)
+        _refundFunds(_escrowId, buyer);
+
+        emit TimeoutClaimed(_escrowId, msg.sender, buyer);
     }
 
     /// @notice Check if an address can raise more disputes

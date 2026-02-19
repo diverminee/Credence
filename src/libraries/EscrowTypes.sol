@@ -10,7 +10,8 @@ library EscrowTypes {
         FUNDED,
         RELEASED,
         REFUNDED,
-        DISPUTED
+        DISPUTED,
+        ESCALATED // Escalated to protocol arbiter after primary arbiter timeout
     }
 
     enum UserTier {
@@ -31,5 +32,6 @@ library EscrowTypes {
         uint256 tradeId; // External trade identifier
         bytes32 tradeDataHash; // Hash of trade documents
         State state;
+        uint256 disputeDeadline; // Deadline for current arbiter to act (0 when not disputed)
     }
 }

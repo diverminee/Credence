@@ -17,6 +17,7 @@ abstract contract BaseEscrow is ReentrancyGuard {
     // ============ State Variables ============
     ITradeOracle public immutable oracle;
     address public immutable feeRecipient;
+    address public immutable protocolArbiter; // Escalation fallback (protocol multisig)
 
     mapping(uint256 => EscrowTypes.EscrowTransaction) public escrows;
     uint256 public nextEscrowId;
@@ -32,6 +33,10 @@ abstract contract BaseEscrow is ReentrancyGuard {
     // Constants for validation
     uint256 public constant MAX_ESCROW_AMOUNT = 10_000_000e18; // 10M tokens max
 
+    // Two-tier escalation timelocks
+    uint256 public constant DISPUTE_TIMELOCK = 14 days; // Primary arbiter window
+    uint256 public constant ESCALATION_TIMELOCK = 7 days; // Protocol arbiter window
+
     // ============ Errors ============
     error InvalidAddresses();
     error InvalidAmount();
@@ -46,6 +51,7 @@ abstract contract BaseEscrow is ReentrancyGuard {
     error SellerCannotBeBuyer();
     error ArbiterCannotBeBuyer();
     error ArbiterCannotBeSeller();
+    error ProtocolArbiterCannotBeParty();
 
     // ============ Events ============
     event EscrowCreated(
@@ -71,12 +77,20 @@ abstract contract BaseEscrow is ReentrancyGuard {
     /// @notice Initialize contract with oracle and fee recipient
     /// @param _oracleAddress Address of the trade oracle
     /// @param _feeRecipient Address to receive transaction fees
-    constructor(address _oracleAddress, address _feeRecipient) {
-        if (_oracleAddress == address(0) || _feeRecipient == address(0)) {
-            revert InvalidAddresses();
-        }
+    constructor(
+        address _oracleAddress,
+        address _feeRecipient,
+        address _protocolArbiter
+    ) {
+        if (
+            _oracleAddress == address(0) ||
+            _feeRecipient == address(0) ||
+            _protocolArbiter == address(0)
+        ) revert InvalidAddresses();
+        if (_protocolArbiter == _feeRecipient) revert InvalidAddresses();
         oracle = ITradeOracle(_oracleAddress);
         feeRecipient = _feeRecipient;
+        protocolArbiter = _protocolArbiter;
     }
 
     // ============ Core Functions ============
@@ -107,6 +121,10 @@ abstract contract BaseEscrow is ReentrancyGuard {
         if (_arbiter == _seller) revert ArbiterCannotBeSeller();
 
         uint256 escrowId = nextEscrowId++;
+        // protocolArbiter cannot be a trade party
+        if (msg.sender == protocolArbiter || _seller == protocolArbiter)
+            revert ProtocolArbiterCannotBeParty();
+
         escrows[escrowId] = EscrowTypes.EscrowTransaction({
             buyer: msg.sender,
             seller: _seller,
@@ -115,7 +133,8 @@ abstract contract BaseEscrow is ReentrancyGuard {
             amount: _amount,
             tradeId: _tradeId,
             tradeDataHash: _tradeDataHash,
-            state: EscrowTypes.State.DRAFT
+            state: EscrowTypes.State.DRAFT,
+            disputeDeadline: 0
         });
 
         escrowExists[escrowId] = true; // Mark as created
@@ -153,10 +172,11 @@ abstract contract BaseEscrow is ReentrancyGuard {
     /// @param _recipient Address to receive funds (seller)
     function _releaseFunds(uint256 _escrowId, address _recipient) internal {
         EscrowTypes.EscrowTransaction storage txn = escrows[_escrowId];
-        // Accept both FUNDED (from manual confirm) and DISPUTED (from arbiter resolution)
+        // Accept FUNDED, DISPUTED, or ESCALATED (protocol arbiter resolution)
         if (
             txn.state != EscrowTypes.State.FUNDED &&
-            txn.state != EscrowTypes.State.DISPUTED
+            txn.state != EscrowTypes.State.DISPUTED &&
+            txn.state != EscrowTypes.State.ESCALATED
         ) {
             revert InvalidState();
         }
@@ -187,10 +207,11 @@ abstract contract BaseEscrow is ReentrancyGuard {
     /// @param _recipient Address to receive refund (buyer)
     function _refundFunds(uint256 _escrowId, address _recipient) internal {
         EscrowTypes.EscrowTransaction storage txn = escrows[_escrowId];
-        // Accept both FUNDED and DISPUTED states
+        // Accept FUNDED, DISPUTED, or ESCALATED (timeout refund)
         if (
             txn.state != EscrowTypes.State.FUNDED &&
-            txn.state != EscrowTypes.State.DISPUTED
+            txn.state != EscrowTypes.State.DISPUTED &&
+            txn.state != EscrowTypes.State.ESCALATED
         ) {
             revert InvalidState();
         }
