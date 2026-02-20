@@ -3,6 +3,7 @@ cache/
 out/
 lib/
 forge-std/
+report.md
 
 # Ignores development broadcast logs
 !/broadcast
