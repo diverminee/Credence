@@ -1,0 +1,168 @@
+# Credence Protocol Subgraph Schema
+# Derived from on-chain events emitted by TradeInfraEscrow (inherits DisputeEscrow, BaseEscrow)
+
+enum EscrowMode {
+  CASH_LOCK
+  PAYMENT_COMMITMENT
+}
+
+enum EscrowState {
+  DRAFT
+  FUNDED
+  RELEASED
+  REFUNDED
+  DISPUTED
+  ESCALATED
+}
+
+enum UserTier {
+  BRONZE
+  SILVER
+  GOLD
+  DIAMOND
+}
+
+type Escrow @entity {
+  id: ID! # escrowId
+  buyer: User!
+  seller: User!
+  amount: BigInt!
+  token: Bytes! # address(0) = ETH
+  mode: EscrowMode!
+  faceValue: BigInt!
+  state: EscrowState!
+
+  # Funding
+  fundedAt: BigInt
+  fundedAmount: BigInt
+
+  # Settlement / Refund
+  settledAt: BigInt
+  settledAmount: BigInt
+  settledFee: BigInt
+  settledRecipient: Bytes
+  refundedAt: BigInt
+  refundedAmount: BigInt
+
+  # Documents
+  documentMerkleRoot: Bytes
+  documentsCommittedAt: BigInt
+
+  # Dispute
+  disputeInitiator: Bytes
+  disputeDeadline: BigInt
+  disputeRaisedAt: BigInt
+  disputeResolvedAt: BigInt
+  disputeRuling: Int
+  disputeArbiter: Bytes
+
+  # Escalation
+  escalatedBy: Bytes
+  escalatedAt: BigInt
+  escalationDeadline: BigInt
+  escalationResolvedAt: BigInt
+  escalationRuling: Int
+  timeoutClaimedAt: BigInt
+  timeoutClaimedBy: Bytes
+
+  # PaymentCommitment fields
+  commitmentFulfilledAt: BigInt
+  commitmentFulfilledAmount: BigInt
+  commitmentDefaultedAt: BigInt
+  commitmentDefaultedAmount: BigInt
+
+  # Delivery / Oracle confirmation
+  deliveryConfirmedAt: BigInt
+  deliveryConfirmedBy: Bytes
+  oracleConfirmedAt: BigInt
+  oracleConfirmedMerkleRoot: Bytes
+
+  # Receivable NFT
+  receivableTokenId: BigInt
+
+  createdAt: BigInt!
+  createdTxHash: Bytes!
+}
+
+type User @entity {
+  id: ID! # address
+  escrowsAsBuyer: [Escrow!]! @derivedFrom(field: "buyer")
+  escrowsAsSeller: [Escrow!]! @derivedFrom(field: "seller")
+  tier: UserTier!
+  tierHistory: [TierChange!]! @derivedFrom(field: "user")
+}
+
+type TierChange @entity {
+  id: ID! # tx hash + log index
+  user: User!
+  oldTier: UserTier!
+  newTier: UserTier!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+type DisputeEvent @entity {
+  id: ID! # tx hash + log index
+  escrow: Escrow!
+  eventType: String! # "raised", "resolved", "escalated", "escalationResolved", "timeout"
+  initiator: Bytes
+  arbiter: Bytes
+  ruling: Int
+  deadline: BigInt
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+type Settlement @entity {
+  id: ID! # tx hash + log index
+  escrow: Escrow!
+  recipient: Bytes!
+  amount: BigInt!
+  fee: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+type Refund @entity {
+  id: ID! # tx hash + log index
+  escrow: Escrow!
+  recipient: Bytes!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+type DocumentCommitment @entity {
+  id: ID! # tx hash + log index
+  escrow: Escrow!
+  merkleRoot: Bytes!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}
+
+type ReceivableToken @entity {
+  id: ID! # tokenId
+  escrow: Escrow!
+  tokenId: BigInt!
+  settled: Boolean!
+  mintedAt: BigInt!
+  settledAt: BigInt
+  mintTxHash: Bytes!
+}
+
+type CommitmentEvent @entity {
+  id: ID! # tx hash + log index
+  escrow: Escrow!
+  eventType: String! # "fulfilled" or "defaulted"
+  buyer: Bytes
+  seller: Bytes
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+}

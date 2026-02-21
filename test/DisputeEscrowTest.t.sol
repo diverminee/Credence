@@ -47,7 +47,7 @@ contract DisputeEscrowTest is EscrowTestBase {
         uint256 id = _fundedETHEscrow();
         uint256 expectedDeadline = block.timestamp + DISPUTE_TIMELOCK;
         vm.expectEmit(true, true, false, true);
-        emit DisputeEscrow.DisputeRaised(id, buyer, expectedDeadline);
+        emit DisputeEscrow.DisputeRaised(id, buyer, expectedDeadline, block.timestamp);
         vm.prank(buyer);
         escrow.raiseDispute(id);
     }
@@ -201,7 +201,7 @@ contract DisputeEscrowTest is EscrowTestBase {
     function test_ResolveDispute_EmitsEvent() public {
         uint256 id = _disputedETHEscrow();
         vm.expectEmit(true, true, false, false);
-        emit DisputeEscrow.DisputeResolved(id, 1);
+        emit DisputeEscrow.DisputeResolved(id, 1, arbiter, block.timestamp);
         vm.prank(arbiter);
         escrow.resolveDispute(id, 1);
     }
@@ -268,7 +268,7 @@ contract DisputeEscrowTest is EscrowTestBase {
         uint256 id = _disputedETHEscrow();
         vm.warp(block.timestamp + DISPUTE_TIMELOCK + 1);
         vm.expectEmit(true, true, false, false);
-        emit DisputeEscrow.DisputeEscalated(id, buyer, block.timestamp + ESCALATION_TIMELOCK);
+        emit DisputeEscrow.DisputeEscalated(id, buyer, block.timestamp + ESCALATION_TIMELOCK, block.timestamp);
         vm.prank(buyer);
         escrow.escalateToProtocol(id);
     }
@@ -325,7 +325,7 @@ contract DisputeEscrowTest is EscrowTestBase {
     function test_ResolveEscalation_EmitsEvent() public {
         uint256 id = _escalatedETHEscrow();
         vm.expectEmit(true, true, false, false);
-        emit DisputeEscrow.EscalationResolved(id, 2);
+        emit DisputeEscrow.EscalationResolved(id, 2, block.timestamp);
         vm.prank(protocolArb);
         escrow.resolveEscalation(id, 2);
     }
@@ -381,7 +381,7 @@ contract DisputeEscrowTest is EscrowTestBase {
         vm.warp(txn.disputeDeadline + 1);
 
         vm.expectEmit(true, true, true, false);
-        emit DisputeEscrow.TimeoutClaimed(id, stranger, buyer);
+        emit DisputeEscrow.TimeoutClaimed(id, stranger, buyer, block.timestamp);
         vm.prank(stranger);
         escrow.claimTimeout(id);
     }

@@ -1,89 +1,126 @@
 # Credence
 
-> Production-grade escrow infrastructure for international trade on Ethereum.
+> Programmable escrow infrastructure for international trade. Built on Ethereum. Secured by smart contracts.
 
-Credence secures real-world trade transactions on-chain. Funds are locked in a smart contract escrow, a centralized oracle confirms delivery, and a two-tier dispute system handles disagreements — all without a bank, broker, or middleman collecting rent on the transaction.
+Credence replaces the institutional trust layer in cross-border commerce with deterministic, on-chain escrow. Funds lock into a non-custodial smart contract at deal inception. Release is triggered by cryptographic proof of delivery, buyer confirmation, or arbitrated resolution — eliminating the banks, brokers, and intermediaries that have extracted margin from global trade for decades.
+
+The protocol introduces two settlement modes — full cash-lock escrow and partial-collateral payment commitments — alongside document-anchored Merkle proofs, tokenized trade receivables (ERC-721), reputation-driven fee tiers, and a two-tier dispute arbitration system. Every mechanism is transparent, auditable, and enforceable without human gatekeepers.
 
 ---
 
 ## Table of Contents
 
-- [Credence](#credence)
-  - [Table of Contents](#table-of-contents)
-  - [Why Credence](#why-credence)
-  - [Supported Tokens](#supported-tokens)
-  - [Architecture](#architecture)
-  - [Core Features](#core-features)
-  - [KYC \& Access Control](#kyc--access-control)
-    - [How it works](#how-it-works)
-    - [Owner functions](#owner-functions)
-  - [Oracle](#oracle)
-    - [CentralizedTradeOracle](#centralizedtradeoracle)
-  - [Reputation \& Fee Tiers](#reputation--fee-tiers)
-  - [Dispute Resolution](#dispute-resolution)
-  - [Contract Reference](#contract-reference)
-    - [`TradeInfraEscrow`](#tradeinfraescrow)
-    - [Constructor Parameters](#constructor-parameters)
-    - [Environment Variables (deploy script)](#environment-variables-deploy-script)
-  - [Getting Started](#getting-started)
-    - [Prerequisites](#prerequisites)
-    - [Install](#install)
-    - [Build](#build)
-    - [Local Node](#local-node)
-  - [Testing](#testing)
-  - [Deployment](#deployment)
-    - [Local (Anvil)](#local-anvil)
-    - [Testnet / Mainnet](#testnet--mainnet)
-  - [Security](#security)
-    - [Design Safeguards](#design-safeguards)
-    - [Audit](#audit)
-    - [Known Limitations](#known-limitations)
-  - [Roadmap](#roadmap)
-  - [Contributing](#contributing)
-  - [License](#license)
+- [The Problem We Solve](#the-problem-we-solve)
+- [Why Previous Blockchain Trade Platforms Failed](#why-previous-blockchain-trade-platforms-failed)
+- [How Credence Is Different](#how-credence-is-different)
+- [Protocol Overview](#protocol-overview)
+- [Architecture](#architecture)
+- [Settlement Modes](#settlement-modes)
+  - [Cash Lock](#cash-lock)
+  - [Payment Commitment](#payment-commitment)
+- [Document Commitment](#document-commitment)
+- [Trade Receivable NFTs](#trade-receivable-nfts)
+- [KYC and Access Control](#kyc-and-access-control)
+- [Oracle Integration](#oracle-integration)
+- [Reputation and Fee Tiers](#reputation-and-fee-tiers)
+- [Dispute Resolution](#dispute-resolution)
+- [Deployment Tiers](#deployment-tiers)
+- [Contract Reference](#contract-reference)
+- [Getting Started](#getting-started)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Security](#security)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## Why Credence
+## The Problem We Solve
 
-Traditional cross-border trade depends on a chain of intermediaries — correspondent banks, trade finance desks, letters of credit, and escrow agents — each adding cost, delay, and counterparty risk. A standard letter of credit alone can take 5–10 business days to issue, cost 0.5–3% of the transaction value in bank fees, and require mountains of paperwork that still get lost or forged.
+International trade is a $32 trillion annual market still running on infrastructure designed in the 1930s. A standard letter of credit takes 5-10 business days to issue, costs 0.5-3% of the transaction value in bank fees, and requires manual document handling where forgery and loss are routine. The result: $1.7 trillion in unmet trade finance demand globally, with small and mid-market exporters shut out entirely.
 
-Credence eliminates that stack entirely.
-
-| Problem in traditional trade         | How Credence handles it                                                                                              |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| **Bank LC fees (0.5–3%)**            | Protocol fees start at 1.2% and fall to 0.7% as reputation grows — no bank margin on top                             |
-| **5–10 day settlement**              | Funds release the moment the oracle confirms delivery or the buyer clicks confirm — settlement is instant            |
-| **Counterparty risk**                | Funds are locked in a non-custodial smart contract; neither party can unilaterally withdraw                          |
-| **Dispute takes weeks / litigation** | On-chain arbitration resolves in 14 days at primary level, 7 additional days at protocol level                       |
-| **Geographic limitation**            | Any two parties with an Ethereum wallet and KYC approval can trade — no correspondent bank network required          |
-| **Currency conversion friction**     | Trade in USDC or USDT and eliminate FX exposure entirely; escrow and release happen in the same stable token         |
-| **Opaque fee structures**            | Fee rate is snapshotted at escrow creation and permanently visible on-chain — no surprise deductions                 |
-| **Reputation locked in one bank**    | On-chain reputation is portable and public; DIAMOND traders pay less regardless of which bank their counterpart uses |
-| **Forgeable paperwork**              | Trade data is hashed and verified by the oracle against an immutable on-chain record                                 |
+| Problem                    | Traditional Trade Finance                                        | Credence                                                               |
+| -------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **Cost**                   | 0.5-3% bank LC fees + correspondent bank charges + FX spreads    | 0.7-1.2% protocol fee, no intermediary margin                          |
+| **Settlement speed**       | 5-10 business days for LC issuance; 2-3 days SWIFT settlement    | Instant on-chain settlement upon delivery confirmation                 |
+| **Counterparty risk**      | Relies on bank guarantees and institutional trust                | Funds locked in non-custodial smart contract; no unilateral withdrawal |
+| **Dispute resolution**     | Weeks to months of litigation across jurisdictions               | 14-day primary arbitration + 7-day escalation, fully on-chain          |
+| **Geographic access**      | Requires correspondent banking network in both countries         | Any two KYC-approved addresses on any EVM chain                        |
+| **Currency exposure**      | FX conversion at each leg of the transaction                     | Settle in USDC/USDT — invoice and payment in the same unit             |
+| **Document integrity**     | Paper-based bills of lading, manually verified, routinely forged | Merkle-anchored document hashes, cryptographically verified on-chain   |
+| **Fee transparency**       | Hidden deductions, opaque pricing, relationship-dependent        | Fee rate snapshotted at escrow creation, permanently visible on-chain  |
+| **Reputation portability** | Credit history locked inside a single banking relationship       | On-chain reputation — portable, public, and bank-independent           |
+| **Capital efficiency**     | Full face-value collateral required for LC                       | Payment Commitment mode: 10-50% collateral with deferred settlement    |
+| **Trade receivables**      | Manual receivable assignment, paper-heavy, illiquid              | Tokenized ERC-721 receivables minted on document commitment            |
 
 ---
 
-## Supported Tokens
+## Why Previous Blockchain Trade Platforms Failed
 
-Credence supports native **ETH** and any **ERC20 token**. The recommended tokens — those seeded into the on-chain allowlist at deployment — are:
+Earlier blockchain-based trade finance platforms — several backed by major global banks — promised to digitize letters of credit and streamline cross-border settlement. Most shut down within 2-4 years despite raising significant capital. The failures shared common root causes:
 
-| Token    | Network         | Address                                      |
-| -------- | --------------- | -------------------------------------------- |
-| **ETH**  | Any EVM chain   | `address(0)`                                 |
-| **USDC** | Mainnet         | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
-| **USDT** | Mainnet         | `0xdAC17F958D2ee523a2206206994597C13D831ec7` |
-| **USDC** | Sepolia testnet | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
-| **USDT** | Sepolia testnet | `0x7169D38820dfd117C3FA1f22a697dBA58d90BA06` |
+**1. Permissioned chains with no real decentralization.** Consortium blockchains required every participant to join the same private network, creating the same gatekeeping problem they claimed to solve. Onboarding a new bank took months of legal and technical integration.
 
-**Why USDC and USDT for international trade?**
+**2. Digital wrappers on the same process.** Most platforms digitized the existing LC workflow rather than replacing it. The same intermediaries sat in the same positions — they just had a blockchain receipt instead of a SWIFT message.
 
-- Both are USD-pegged and broadly liquid across exchanges and OTC desks.
-- Eliminates FX risk between invoice and settlement — buyer locks $50,000 USDC, seller receives $50,000 USDC minus the protocol fee.
-- USDC is regulated under US money transmission law (Circle); USDT is the most liquid stablecoin by volume. Both are accepted collateral across DeFi and CEX rails, making liquidation or conversion straightforward for either party.
-- Far cheaper to move than a SWIFT wire: a USDC transfer on Ethereum costs a few dollars of gas versus $25–50 per SWIFT message plus ~2 days settlement.
+**3. No capital efficiency gain.** Full collateralization remained the norm. Buyers still locked 100% of the trade value upfront, eliminating the working capital benefit that trade finance is supposed to provide.
 
-The allowlist is a soft recommendation layer — the escrow contract accepts any ERC20. The owner can add new tokens via `addApprovedToken()` as the stablecoin landscape evolves.
+**4. No composability.** Trade receivables and escrow positions were trapped inside walled-garden platforms with no secondary market access, no DeFi integration, and no path to liquidity.
+
+**5. Consortium governance paralysis.** Decision-making required consensus across competing banks, leading to feature stagnation and inability to adapt to market needs.
+
+Credence was designed from the ground up to avoid every one of these failure modes.
+
+---
+
+## How Credence Is Different
+
+| Failed approach               | Credence design decision                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------------------------ |
+| Permissioned consortium chain | Public Ethereum — permissionless, censorship-resistant, globally accessible                |
+| Digitized LC workflow         | Purpose-built escrow primitive with two settlement modes, not a wrapper on legacy process  |
+| 100% collateral required      | Payment Commitment mode: 10-50% collateral with maturity-based settlement                  |
+| Trapped receivables           | ERC-721 trade receivable NFTs — composable, transferable, DeFi-compatible                  |
+| Bank-controlled onboarding    | KYC as a configurable access layer; pluggable with any identity provider                   |
+| Single oracle dependency      | Pluggable oracle interface (`ITradeOracle`) with centralized and Chainlink implementations |
+| Governance deadlock           | Single owner with transparent on-chain admin; optional multisig arbiter                    |
+| Opaque fee structures         | Reputation-based fees (0.7-1.2%) locked at escrow creation                                 |
+
+---
+
+## Protocol Overview
+
+```
+Buyer creates escrow (Cash Lock or Payment Commitment)
+        │
+        ▼
+   Buyer funds escrow (full amount or collateral only)
+        │
+        ▼
+   Seller commits trade documents (invoice, B/L, packing list, COO)
+        │                                    │
+        │                         [Payment Commitment mode]
+        │                                    │
+        │                         Receivable NFT minted ──► tradeable on secondary markets
+        │
+        ├──► Buyer confirms delivery ──► funds released to seller
+        │
+        ├──► Oracle confirms delivery ──► funds released to seller
+        │
+        ├──► Dispute raised ──► primary arbiter (14 days)
+        │         │
+        │         ├──► ruling: release to seller
+        │         ├──► ruling: refund to buyer
+        │         └──► timeout ──► escalate to protocol arbiter (7 days)
+        │                              │
+        │                              └──► timeout ──► either party reclaims
+        │
+        └──► [Payment Commitment only]
+                  │
+                  ├──► Buyer fulfills commitment (pays remaining balance)
+                  └──► Maturity passes without fulfillment ──► seller claims collateral
+```
 
 ---
 
@@ -91,16 +128,26 @@ The allowlist is a soft recommendation layer — the escrow contract accepts any
 
 ```
 src/
-├── CentralizedTradeOracle.sol   # Owner-controlled oracle registry
 ├── core/
-│   ├── BaseEscrow.sol           # Abstract base: state, KYC, token registry, fund logic
-│   ├── DisputeEscrow.sol        # Dispute & escalation layer
-│   └── TradeInfraEscrow.sol     # Main entry point (delivery confirm + oracle)
+│   ├── BaseEscrow.sol              # Abstract base: escrow state, KYC, tokens, tiers,
+│   │                               # documents, receivables, fund/release/refund logic
+│   ├── DisputeEscrow.sol           # Two-tier dispute and escalation layer
+│   └── TradeInfraEscrow.sol        # Entry point: delivery, oracle, commitments
 ├── interfaces/
-│   └── ITradeOracle.sol         # Oracle interface
-└── libraries/
-    ├── EscrowTypes.sol          # Shared enums and structs
-    └── ReputationLibrary.sol    # Pure fee/tier calculation functions
+│   ├── ITradeOracle.sol            # Pluggable oracle interface
+│   └── IReceivableMinter.sol       # Receivable NFT minting interface
+├── libraries/
+│   ├── EscrowTypes.sol             # Enums, structs, shared type definitions
+│   └── ReputationLibrary.sol       # Pure fee/tier calculation functions
+├── governance/
+│   └── ProtocolArbiterMultisig.sol # Multi-signature protocol arbiter
+├── CentralizedTradeOracle.sol      # Owner-controlled oracle (testnet/early production)
+├── ChainlinkTradeOracle.sol        # Chainlink Functions oracle (decentralized)
+└── CredenceReceivable.sol          # ERC-721 trade receivable NFT
+
+script/
+├── DeployCredence.s.sol            # Full deployment: oracle + escrow + receivable + multisig
+└── DeployChainlinkOracle.s.sol     # Standalone Chainlink oracle deployment
 ```
 
 **Inheritance chain:**
@@ -111,96 +158,202 @@ BaseEscrow (abstract)
             └── TradeInfraEscrow   ← deploy this
 ```
 
-`TradeInfraEscrow` is the production-facing contract. It inherits all escrow state management from `BaseEscrow` (including KYC and token registry) and all dispute logic from `DisputeEscrow`, adding delivery confirmation and oracle settlement on top.
+`TradeInfraEscrow` is the production-facing contract. It inherits escrow state management, KYC, document commitment, and receivable hooks from `BaseEscrow`, all dispute logic from `DisputeEscrow`, and adds delivery confirmation, oracle settlement, payment commitment fulfillment, and default claims.
+
+**Total protocol size:** ~1,400 nSLOC across 11 Solidity source files.
 
 ---
 
-## Core Features
+## Settlement Modes
 
-| Feature              | Description                                                                         |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| ETH & ERC20 escrows  | Pass `address(0)` for native ETH or any ERC20 token address                         |
-| Stable token support | USDC and USDT seeded as recommended tokens at deployment                            |
-| KYC gate             | Both buyer and seller must be KYC-approved before an escrow can be created          |
-| Token allowlist      | On-chain registry of recommended tokens; queryable by frontends and integrators     |
-| Oracle settlement    | `confirmByOracle()` verifies a `tradeDataHash` against the on-chain oracle registry |
-| Manual confirmation  | `confirmDelivery()` lets the buyer release funds directly                           |
-| Dispute initiation   | Either party can raise a dispute on any `FUNDED` escrow                             |
-| Two-tier arbitration | Primary arbiter (14 days) → protocol arbiter escalation (7 days)                    |
-| Timeout claims       | If an arbiter misses their deadline, either party can reclaim funds                 |
-| Reputation system    | Trade history tracked on-chain; tiers and fees update automatically                 |
-| Abuse prevention     | Dispute rate limiting — 10+ initiations or >50% loss rate blocks further disputes   |
-| Amount bounds        | Min: 1,000 units — Max: 10,000,000 tokens (prevents dust and overflow edge cases)   |
+Credence supports two escrow modes, selectable at creation time.
 
----
+### Cash Lock
 
-## KYC & Access Control
-
-Credence includes a basic on-chain KYC gate managed by the contract owner (the deploying address or a delegated admin).
-
-### How it works
-
-- `kycApproved[address]` — mapping from address to approval status.
-- `createEscrow()` reverts with `NotKYCApproved()` if either the buyer (`msg.sender`) or the seller is not approved.
-- KYC status does not affect funding, disputes, or settlement — only escrow creation.
-
-### Owner functions
+The standard escrow model. The buyer deposits the full trade amount upfront. Funds are held in the contract until delivery is confirmed or a dispute is resolved.
 
 ```solidity
-// Approve or revoke a single address
-escrow.setKYCStatus(address user, bool approved)
-
-// Bulk onboarding
-escrow.batchSetKYCStatus(address[] users, bool approved)
-
-// Transfer admin rights (e.g. to a multisig)
-escrow.transferOwnership(address newOwner)
+// 6-parameter overload — defaults to CASH_LOCK mode
+escrow.createEscrow(seller, arbiter, token, amount, tradeId, tradeDataHash);
 ```
 
-The KYC layer is intentionally minimal. It is designed to be extended by plugging in an off-chain verification provider (e.g. Synaps, Fractal, Civic) which calls the above functions once a user completes identity verification. The contract itself does not store personal data.
+- `collateralAmount` = `amount` (full face value locked)
+- No maturity date
+- Funds release in full on confirmation; refund in full on reversal
+
+Best for: spot trades, first-time counterparties, low-trust scenarios.
+
+### Payment Commitment
+
+A capital-efficient mode where the buyer posts partial collateral (10-50% of face value) and commits to pay the remaining balance before a maturity date. This is the on-chain equivalent of a deferred payment letter of credit — but without the bank, the 5-day issuance delay, or the 0.5-3% LC fee.
+
+```solidity
+// 9-parameter overload — PAYMENT_COMMITMENT mode
+escrow.createEscrow(
+    seller, arbiter, token, amount, tradeId, tradeDataHash,
+    collateralBps,   // e.g. 2000 = 20% collateral
+    maturityDays,    // e.g. 60 = due in 60 days
+    true             // isPaymentCommitment = true
+);
+```
+
+- `collateralBps` range: 1000-5000 (10%-50%)
+- `collateralAmount` = `amount * collateralBps / 10000`
+- `maturityDate` = `block.timestamp + (maturityDays * 1 days)`
+- Buyer funds only the collateral amount
+- Before maturity: buyer calls `fulfillCommitment()` to pay the remaining balance
+- If fulfilled: full `amount` releases to seller on confirmation
+- If not fulfilled by maturity: seller calls `claimDefaultedCommitment()` to seize collateral
+- If not fulfilled but not yet matured: only collateral releases on confirmation
+
+**Capital efficiency example:**
+
+A $500,000 USDC trade with 20% collateral:
+- Traditional LC: buyer locks $500,000 + pays $2,500-$15,000 in bank fees
+- Credence Payment Commitment: buyer locks $100,000 USDC, retains $400,000 in working capital until fulfillment
+
+| Parameter               | Default    | Range               |
+| ----------------------- | ---------- | ------------------- |
+| Collateral basis points | 2000 (20%) | 1000-5000 (10%-50%) |
+| Maturity period         | 60 days    | Custom (in days)    |
 
 ---
 
-## Oracle
+## Document Commitment
 
-Credence uses a centralized oracle with a clean pluggable interface (`ITradeOracle`). The deployed implementation is `CentralizedTradeOracle`.
+After an escrow is funded, the seller commits trade documents by submitting their cryptographic hashes on-chain. The contract computes a Merkle root from up to four document hashes:
+
+| Leaf | Document                         |
+| ---- | -------------------------------- |
+| 1    | Commercial invoice               |
+| 2    | Bill of lading                   |
+| 3    | Packing list                     |
+| 4    | Certificate of origin (optional) |
+
+```solidity
+escrow.commitDocuments(
+    escrowId,
+    invoiceHash,
+    bolHash,
+    packingListHash,
+    cooHash             // bytes32(0) if not applicable
+);
+```
+
+The Merkle root is computed bottom-up using pair-wise `keccak256` hashing. It is stored on-chain and emitted in the `DocumentsCommitted` event, creating an immutable, timestamped proof that specific documents were presented at a specific point in time.
+
+**Oracle integration:** `confirmByOracle()` requires documents to be committed before it will accept oracle confirmation — ensuring that settlement cannot occur without a verifiable document trail.
+
+**Why this matters for trade:** Document fraud is a systemic problem in international trade. The UN estimates that 1-2% of global trade involves fraudulent documentation. Merkle-anchored hashes allow any party — buyer, seller, insurer, financier — to independently verify that the documents presented match the on-chain commitment, without revealing the documents themselves.
+
+---
+
+## Trade Receivable NFTs
+
+When a seller commits documents on a Payment Commitment escrow, the protocol automatically mints an ERC-721 receivable NFT representing the buyer's obligation to pay the remaining balance.
+
+```
+Seller commits documents
+        │
+        ▼
+CredenceReceivable.mint(seller, escrowId, faceValue, collateralAmount, maturityDate)
+        │
+        ▼
+ERC-721 token issued to seller
+        │
+        ▼
+Receivable is tradeable, transferable, and DeFi-composable
+```
+
+Each receivable NFT encodes:
+- Escrow ID
+- Face value of the trade
+- Collateral already posted
+- Maturity date
+- Settlement status
+
+**Settlement lifecycle:** The receivable is automatically settled (marked as resolved) when:
+- The buyer confirms delivery
+- The oracle confirms delivery
+- A dispute is resolved
+- The buyer fulfills the payment commitment
+- The seller claims a defaulted commitment
+- The escrow is refunded
+
+Receivable NFTs are not minted for Cash Lock escrows (where no future obligation exists).
+
+**Why this matters:** Trade receivables are a $3 trillion asset class globally but remain largely illiquid due to manual assignment processes and lack of standardization. ERC-721 tokenization makes these receivables instantly transferable, pledgeable as collateral in DeFi lending protocols, and tradeable on secondary markets — unlocking liquidity for exporters that was previously inaccessible.
+
+---
+
+## KYC and Access Control
+
+Credence includes an on-chain KYC gate managed by the contract owner.
+
+- `kycApproved[address]` — mapping from address to approval status
+- `createEscrow()` reverts with `NotKYCApproved()` if either buyer or seller is not approved
+- KYC status does not affect funding, disputes, or settlement — only escrow creation
+
+```solidity
+// Single address
+escrow.setKYCStatus(user, true);
+
+// Bulk onboarding
+escrow.batchSetKYCStatus(users, true);
+
+// Transfer admin to multisig
+escrow.transferOwnership(newOwner);
+```
+
+The KYC layer is intentionally minimal and designed to be extended by plugging in an off-chain verification provider (Synaps, Fractal, Civic, or equivalent) which calls the above functions once a user completes identity verification. The contract does not store personal data.
+
+---
+
+## Oracle Integration
+
+Credence uses a pluggable oracle interface (`ITradeOracle`) with two production implementations.
 
 ### CentralizedTradeOracle
 
-An owner-controlled on-chain registry. The Credence backend (or a multisig) calls `submitVerification()` after independently confirming that shipment or delivery data matches the trade record.
+Owner-controlled on-chain registry. The Credence backend (or a multisig) calls `submitVerification()` after independently confirming that shipment or delivery data matches the trade record.
 
 ```solidity
-// Backend submits confirmation
-oracle.submitVerification(bytes32 tradeDataHash, bool result)
-
-// Escrow queries during confirmByOracle()
-oracle.verifyTradeData(bytes32 tradeDataHash) → bool
+oracle.submitVerification(tradeDataHash, true);   // backend confirms
+oracle.verifyTradeData(tradeDataHash);             // escrow queries
 ```
 
-**Flow:**
+Suitable for testnet, early production, and use cases where the protocol operator performs shipment verification.
 
-1. Buyer and seller agree on trade terms off-chain; a `tradeDataHash` capturing those terms is committed to the escrow at creation.
-2. When delivery is claimed, the Credence backend independently verifies the shipment proof and calls `submitVerification(hash, true)`.
-3. Anyone (typically an automated relayer) calls `confirmByOracle(escrowId)` on the escrow contract. The escrow queries the oracle, and if verified, releases funds to the seller.
+### ChainlinkTradeOracle
 
-The oracle owner can be changed to a multisig via `oracle.transferOwnership(address)`.
+Decentralized oracle powered by Chainlink Functions. A custom JavaScript source executes against external shipping APIs and returns verification results on-chain without relying on a single operator.
+
+```solidity
+oracle.requestVerification(escrowId, trackingNumber);   // triggers Chainlink request
+// ... Chainlink DON executes JS source, calls back ...
+oracle.verifyTradeData(tradeDataHash);                   // returns result
+```
+
+Suitable for production deployments requiring trustless, decentralized delivery verification.
+
+The oracle owner can be changed at any time via `oracle.transferOwnership(address)`.
 
 ---
 
-## Reputation & Fee Tiers
+## Reputation and Fee Tiers
 
-Every address accumulates a reputation score from its completed escrows. Fees are deducted from the escrowed amount at release and forwarded to the `feeRecipient`.
+Every address accumulates a reputation score from completed escrows. Fees are deducted from the escrowed amount at release and forwarded to the `feeRecipient`.
 
-| Tier        | Requirement                              | Protocol Fee |
-| ----------- | ---------------------------------------- | ------------ |
-| **BRONZE**  | New user / low activity                  | 1.2%         |
-| **SILVER**  | ≥ 5 successful trades                    | 0.9%         |
-| **GOLD**    | ≥ 20 successful trades, ≤ 1 dispute loss | 0.8%         |
-| **DIAMOND** | ≥ 50 successful trades, 0 dispute losses | 0.7%         |
+| Tier        | Requirement                                      | Protocol Fee |
+| ----------- | ------------------------------------------------ | ------------ |
+| **BRONZE**  | Default                                          | 1.2%         |
+| **SILVER**  | 5+ successful trades                             | 0.9%         |
+| **GOLD**    | 20+ successful trades, 1 or fewer dispute losses | 0.8%         |
+| **DIAMOND** | 50+ successful trades, 0 dispute losses          | 0.7%         |
 
 The tier is evaluated at escrow creation and snapshotted in the `feeRate` field, locking fee terms for the lifetime of that escrow regardless of subsequent reputation changes.
 
-On a $100,000 USDC trade: a BRONZE user pays $1,200 in protocol fees; a DIAMOND user pays $700. For high-volume importers and exporters, the fee reduction compounds meaningfully over time.
+**Example:** On a $100,000 USDC trade, a BRONZE user pays $1,200 in protocol fees. A DIAMOND user pays $700. For high-volume importers and exporters, the fee reduction compounds meaningfully over time. Both are substantially below the 0.5-3% charged by traditional LC-issuing banks — before accounting for correspondent bank fees, SWIFT charges, and FX spreads.
 
 ---
 
@@ -209,19 +362,36 @@ On a $100,000 USDC trade: a BRONZE user pays $1,200 in protocol fees; a DIAMOND 
 Credence uses a two-tier escalation model to prevent arbitration deadlock.
 
 ```
-FUNDED ──► DISPUTED ──► (arbiter resolves within 14 days)
+FUNDED ──► DISPUTED ──► arbiter resolves (14-day window)
                 │
-                └──► ESCALATED ──► (protocol arbiter resolves within 7 days)
-                          │
-                          └──► timeout → either party reclaims funds
+                └──► ESCALATED ──► protocol arbiter resolves (7-day window)
+                         │
+                         └──► timeout ──► either party reclaims funds
 ```
 
-1. **Raise** — buyer or seller calls `raiseDispute()`, opening a 14-day window for the designated `arbiter`.
+1. **Raise** — buyer or seller calls `raiseDispute()`, opening a 14-day window for the designated arbiter.
 2. **Resolve** — arbiter calls `resolveDispute(ruling)`. Ruling `1` releases to seller; ruling `2` refunds buyer.
-3. **Escalate** — if the arbiter does not act within 14 days, either party escalates to the `protocolArbiter` (multisig recommended), opening a fresh 7-day window.
-4. **Timeout** — if the protocol arbiter also fails to act, either party can call `claimTimeout()` to recover funds.
+3. **Escalate** — if the arbiter does not act within 14 days, either party escalates to the protocol arbiter, opening a 7-day window.
+4. **Timeout** — if the protocol arbiter also fails to act, either party calls `claimTimeout()` to recover funds.
 
-The `disputesInitiated` and `disputesLost` mappings feed directly into reputation calculations and the abuse-prevention rate-limiter.
+**Abuse prevention:** Users with 10+ disputes initiated, or a >50% loss rate with 3+ losses, are blocked from raising further disputes.
+
+**Protocol Arbiter Multisig:** The `ProtocolArbiterMultisig` contract provides on-chain multi-signature governance for escalated disputes. Multiple signers vote on rulings, and resolution executes automatically when the threshold is met.
+
+---
+
+## Deployment Tiers
+
+Credence implements progressive deployment tiers that cap the maximum escrow amount as the protocol matures through production milestones.
+
+| Tier        | Max Escrow Amount | Use Case                              |
+| ----------- | ----------------- | ------------------------------------- |
+| **TESTNET** | Unlimited         | Development and testing               |
+| **LAUNCH**  | 50,000 tokens     | Early production, limited exposure    |
+| **GROWTH**  | 500,000 tokens    | Scaling with operational track record |
+| **MATURE**  | 10,000,000 tokens | Full production                       |
+
+Tiers can only be upgraded (never downgraded) by the contract owner via `upgradeTier()`. Existing escrows are unaffected by tier changes. The maximum can also be set manually within the tier ceiling via `setMaxEscrowAmount()`.
 
 ---
 
@@ -229,26 +399,36 @@ The `disputesInitiated` and `disputesLost` mappings feed directly into reputatio
 
 ### `TradeInfraEscrow`
 
-| Function                             | Access                 | Description                                       |
-| ------------------------------------ | ---------------------- | ------------------------------------------------- |
-| `createEscrow(...)`                  | KYC-approved addresses | Create a new `DRAFT` escrow                       |
-| `fund(id)`                           | Buyer                  | Move escrow to `FUNDED` state                     |
-| `confirmDelivery(id)`                | Buyer                  | Release funds to seller                           |
-| `confirmByOracle(id)`                | Anyone                 | Settle via oracle hash verification               |
-| `raiseDispute(id)`                   | Buyer / Seller         | Transition to `DISPUTED`                          |
-| `resolveDispute(id, ruling)`         | Arbiter                | Resolve primary dispute                           |
-| `escalateToProtocol(id)`             | Buyer / Seller         | Move to `ESCALATED` after primary arbiter timeout |
-| `resolveEscalation(id, ruling)`      | Protocol Arbiter       | Final on-chain resolution                         |
-| `claimTimeout(id)`                   | Buyer / Seller         | Recover funds after full escalation timeout       |
-| `setKYCStatus(user, approved)`       | Owner                  | Approve or revoke KYC for an address              |
-| `batchSetKYCStatus(users, approved)` | Owner                  | Bulk KYC updates                                  |
-| `addApprovedToken(token)`            | Owner                  | Add a token to the recommended list               |
-| `removeApprovedToken(token)`         | Owner                  | Remove a token from the recommended list          |
-| `transferOwnership(newOwner)`        | Owner                  | Hand off admin rights                             |
-| `getUserTier(addr)`                  | View                   | Returns the `UserTier` enum for an address        |
-| `getUserTierName(addr)`              | View                   | Returns tier as a human-readable string           |
+| Function                                                      | Access           | Description                                         |
+| ------------------------------------------------------------- | ---------------- | --------------------------------------------------- |
+| `createEscrow(seller, arbiter, token, amount, tradeId, hash)` | KYC-approved     | Create a Cash Lock escrow                           |
+| `createEscrow(..., collateralBps, maturityDays, true)`        | KYC-approved     | Create a Payment Commitment escrow                  |
+| `fund(id)`                                                    | Buyer            | Deposit funds (full amount or collateral)           |
+| `commitDocuments(id, invoice, bol, packing, coo)`             | Seller           | Anchor trade documents on-chain                     |
+| `confirmDelivery(id)`                                         | Buyer            | Release funds to seller                             |
+| `confirmByOracle(id)`                                         | Anyone           | Settle via oracle verification (requires documents) |
+| `fulfillCommitment(id)`                                       | Buyer            | Pay remaining balance on Payment Commitment         |
+| `claimDefaultedCommitment(id)`                                | Seller           | Claim collateral after maturity default             |
+| `raiseDispute(id)`                                            | Buyer / Seller   | Transition to DISPUTED                              |
+| `resolveDispute(id, ruling)`                                  | Arbiter          | Resolve primary dispute                             |
+| `escalateToProtocol(id)`                                      | Buyer / Seller   | Escalate after primary arbiter timeout              |
+| `resolveEscalation(id, ruling)`                               | Protocol Arbiter | Final on-chain resolution                           |
+| `claimTimeout(id)`                                            | Buyer / Seller   | Recover funds after escalation timeout              |
+| `setKYCStatus(user, approved)`                                | Owner            | Approve or revoke KYC                               |
+| `batchSetKYCStatus(users, approved)`                          | Owner            | Bulk KYC updates                                    |
+| `addApprovedToken(token)`                                     | Owner            | Add token to recommended list                       |
+| `removeApprovedToken(token)`                                  | Owner            | Remove token from recommended list                  |
+| `upgradeTier(tier)`                                           | Owner            | Upgrade deployment tier                             |
+| `setMaxEscrowAmount(amount)`                                  | Owner            | Set max within tier ceiling                         |
+| `setReceivableMinter(minter)`                                 | Owner            | Register receivable NFT contract                    |
+| `transferOwnership(newOwner)`                                 | Owner            | Transfer admin rights                               |
+| `getEscrow(id)`                                               | View             | Return escrow transaction data                      |
+| `getMaturityStatus(id)`                                       | View             | Return maturity and fulfillment status              |
+| `getUserTier(addr)`                                           | View             | Return UserTier enum                                |
+| `getUserTierName(addr)`                                       | View             | Return tier as human-readable string                |
+| `getReceivableTokenId(id)`                                    | View             | Return receivable NFT token ID                      |
 
-### Constructor Parameters
+### Constructor
 
 ```solidity
 constructor(
@@ -256,19 +436,19 @@ constructor(
     address _feeRecipient,    // Receives protocol fees on release
     address _protocolArbiter  // Final escalation authority (multisig recommended)
 )
-// msg.sender becomes the contract owner (KYC admin + token registry admin)
 ```
 
-### Environment Variables (deploy script)
+### Supported Tokens
 
-| Variable           | Default          | Description                                       |
-| ------------------ | ---------------- | ------------------------------------------------- |
-| `PRIVATE_KEY`      | Anvil key #0     | Deployer private key                              |
-| `FEE_RECIPIENT`    | Anvil address #1 | Address that collects protocol fees               |
-| `PROTOCOL_ARBITER` | Anvil address #2 | Final escalation arbiter (use a multisig)         |
-| `ORACLE_OWNER`     | Deployer address | Address authorized to call `submitVerification()` |
-| `USDC_ADDRESS`     | Sepolia USDC     | USDC address seeded into token allowlist          |
-| `USDT_ADDRESS`     | Sepolia USDT     | USDT address seeded into token allowlist          |
+| Token    | Network       | Address                                      |
+| -------- | ------------- | -------------------------------------------- |
+| **ETH**  | Any EVM chain | `address(0)`                                 |
+| **USDC** | Mainnet       | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+| **USDT** | Mainnet       | `0xdAC17F958D2ee523a2206206994597C13D831ec7` |
+| **USDC** | Sepolia       | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+| **USDT** | Sepolia       | `0x7169D38820dfd117C3FA1f22a697dBA58d90BA06` |
+
+The allowlist is a soft recommendation layer. The escrow contract accepts any ERC20. The owner can add tokens via `addApprovedToken()` as the stablecoin landscape evolves.
 
 ---
 
@@ -308,55 +488,68 @@ anvil
 ## Testing
 
 ```shell
-# Run all tests (serial mode — required due to vm.setEnv in deploy tests)
+# Run all 238 tests
 forge test
 
-# Verbose output with gas usage
+# Verbose output with traces
 forge test -vvv
 
 # Run a specific test file
-forge test --match-path test/TradeInfraEscrowTest.t.sol -vvv
+forge test --match-path test/PaymentCommitmentTest.t.sol -vvv
 
 # Gas snapshot
 forge snapshot
 ```
 
-| Test File                    | Covers                                                           |
-| ---------------------------- | ---------------------------------------------------------------- |
-| `BaseEscrowTest.t.sol`       | Escrow creation, funding, KYC checks, token allowlist, ownership |
-| `DisputeEscrowTest.t.sol`    | Dispute flow, escalation, timeouts, rate limiting                |
-| `TradeInfraEscrowTest.t.sol` | Delivery confirmation, oracle settlement, reputation tiers       |
-| `DeployCredenceTest.t.sol`   | Deployment script, env var overrides, post-deploy interactions   |
+| Test Suite                          | Tests | Coverage                                                               |
+| ----------------------------------- | ----- | ---------------------------------------------------------------------- |
+| `BaseEscrowTest.t.sol`              | 59    | Escrow creation, funding, KYC, token allowlist, ownership, tiers       |
+| `DisputeEscrowTest.t.sol`           | 42    | Dispute lifecycle, escalation, timeouts, reputation, rate limiting     |
+| `PaymentCommitmentTest.t.sol`       | 36    | PC creation, collateral funding, fulfillment, default claims, maturity |
+| `TradeInfraEscrowTest.t.sol`        | 22    | Delivery confirmation, oracle settlement, fee tiers, full flows        |
+| `ChainlinkOracleTest.t.sol`         | 19    | Chainlink Functions integration, callbacks, re-requests                |
+| `DeployCredenceTest.t.sol`          | 18    | Deploy script, env overrides, post-deploy interactions, tier config    |
+| `ReceivableTest.t.sol`              | 16    | NFT minting, settlement, metadata, failure resilience                  |
+| `DocumentCommitmentTest.t.sol`      | 14    | Merkle tree (1-4 leaves), document anchoring, oracle gating            |
+| `ProtocolArbiterMultisigTest.t.sol` | 12    | Multisig proposals, approvals, execution, revocation                   |
 
-121 tests, 0 failures.
+**238 tests, 0 failures.**
 
-> Tests run with `jobs = 1` (set in `foundry.toml`). The deploy test suite uses `vm.setEnv` to test environment variable overrides; parallel execution creates race conditions on the shared OS process environment.
+> Tests run with `jobs = 1` (set in `foundry.toml`). The deploy test suite uses `vm.setEnv` to test environment variable overrides; parallel execution would create race conditions on the shared OS process environment.
 
 ---
 
 ## Deployment
 
+### Environment Variables
+
+| Variable               | Default          | Description                                           |
+| ---------------------- | ---------------- | ----------------------------------------------------- |
+| `PRIVATE_KEY`          | Anvil key #0     | Deployer private key                                  |
+| `FEE_RECIPIENT`        | Anvil address #1 | Protocol fee collector                                |
+| `PROTOCOL_ARBITER`     | Anvil address #2 | Final escalation authority                            |
+| `ORACLE_OWNER`         | Deployer         | Oracle admin address                                  |
+| `USDC_ADDRESS`         | Sepolia USDC     | USDC for token allowlist                              |
+| `USDT_ADDRESS`         | Sepolia USDT     | USDT for token allowlist                              |
+| `DEPLOYMENT_TIER`      | TESTNET          | TESTNET, LAUNCH, GROWTH, or MATURE                    |
+| `USE_CHAINLINK_ORACLE` | false            | Deploy Chainlink oracle instead of centralized        |
+| `MULTISIG_SIGNERS`     | (empty)          | Comma-separated signer addresses for multisig arbiter |
+| `MULTISIG_THRESHOLD`   | 2                | Required approvals for multisig resolution            |
+
 ### Local (Anvil)
 
 ```shell
-# Start a local node in a separate terminal
-anvil
-
-# Deploy using default Anvil keys
-forge script script/DeployCredence.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
+anvil                    # terminal 1
+make deploy-local        # terminal 2
 ```
 
 ### Testnet / Mainnet
 
 ```shell
-export PRIVATE_KEY=<your_deployer_key>
-export FEE_RECIPIENT=<fee_recipient_address>
+export PRIVATE_KEY=<deployer_key>
+export FEE_RECIPIENT=<fee_address>
 export PROTOCOL_ARBITER=<multisig_address>
-export ORACLE_OWNER=<backend_eoa_or_multisig>
-
-# Optional: override token addresses for the target network
-export USDC_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48   # mainnet USDC
-export USDT_ADDRESS=0xdAC17F958D2ee523a2206206994597C13D831ec7   # mainnet USDT
+export DEPLOYMENT_TIER=LAUNCH
 
 forge script script/DeployCredence.s.sol \
   --rpc-url <rpc_url> \
@@ -364,14 +557,15 @@ forge script script/DeployCredence.s.sol \
   --verify
 ```
 
-The script deploys `CentralizedTradeOracle` and `TradeInfraEscrow` in sequence, then seeds the token allowlist with ETH, USDC, and USDT. The deployer's address becomes both the escrow owner and defaults to the oracle owner (override with `ORACLE_OWNER`).
+The deploy script deploys the oracle, `TradeInfraEscrow`, and `CredenceReceivable` NFT contract in sequence, registers the receivable minter with the escrow, and seeds the token allowlist with ETH, USDC, and USDT. The deployer address becomes the escrow owner. Deployed addresses are written to `.env.deployed`.
 
 **Post-deploy checklist:**
 
 - [ ] KYC-onboard initial traders via `batchSetKYCStatus()`
-- [ ] Transfer oracle ownership to the backend EOA or operational multisig: `oracle.transferOwnership(backendEOA)`
-- [ ] Transfer escrow ownership to a governance multisig: `escrow.transferOwnership(multisig)`
-- [ ] Verify contracts on Etherscan using `--verify`
+- [ ] Transfer oracle ownership to operational multisig: `oracle.transferOwnership(multisig)`
+- [ ] Transfer escrow ownership to governance multisig: `escrow.transferOwnership(multisig)`
+- [ ] Upgrade deployment tier as volume grows: `escrow.upgradeTier(LAUNCH)`
+- [ ] Verify contracts on Etherscan using `--verify` flag
 
 ---
 
@@ -379,41 +573,56 @@ The script deploys `CentralizedTradeOracle` and `TradeInfraEscrow` in sequence, 
 
 ### Design Safeguards
 
-- **Reentrancy** — all state-changing external functions use `nonReentrant`.
-- **Role separation** — buyer, seller, arbiter, protocol arbiter, and fee recipient are strictly distinct; the constructor enforces this.
-- **KYC gate** — both escrow parties must be approved before funds can be committed.
-- **Phantom escrow prevention** — the `escrowExists` mapping blocks attacks on non-existent IDs.
+- **Reentrancy** — all state-changing external calls use `nonReentrant` (OpenZeppelin `ReentrancyGuard`).
+- **Safe transfers** — all ERC20 operations use OpenZeppelin `SafeERC20` to handle non-standard return values.
+- **Role separation** — buyer, seller, arbiter, protocol arbiter, and fee recipient are strictly distinct; constructor enforces this.
+- **KYC gate** — both escrow parties must be approved before an escrow can be created.
+- **Phantom escrow prevention** — the `escrowExists` mapping blocks operations on non-existent IDs.
 - **Fee snapshot** — fee rate is locked at escrow creation; no mid-flight manipulation is possible.
-- **Dispute rate limiting** — users with ≥ 10 disputes initiated, or a >50% loss rate (with ≥ 3 losses), are blocked from raising further disputes.
-- **Amount bounds** — `MIN_ESCROW_AMOUNT = 1,000` and `MAX_ESCROW_AMOUNT = 10,000,000e18` prevent dust attacks and arithmetic overflow edge cases.
-- **Non-custodial** — no admin can unilaterally drain funds; all fund movements require a valid state transition.
+- **Dispute rate limiting** — users with 10+ disputes or >50% loss rate (3+ losses) are blocked from raising further disputes.
+- **Amount bounds** — `MIN_ESCROW_AMOUNT = 1,000` prevents dust attacks. Deployment tier caps prevent overexposure.
+- **Non-custodial** — no admin function can unilaterally drain funds; all fund movements require valid state transitions.
+- **Resilient minting** — receivable NFT minting uses `try/catch` so a failing minter never blocks escrow operations.
+- **Document gating** — oracle confirmation requires prior document commitment, preventing settlement without a verifiable document trail.
+- **Collateral bounds** — Payment Commitment collateral is bounded to 10-50% of face value, preventing both under-collateralization and economic equivalence to Cash Lock.
 
-### Audit
+### Audit Status
 
-An automated security analysis report generated by [Aderyn](https://github.com/Cyfrin/aderyn) is available at [`report.md`](report.md).
+An automated static analysis report generated by [Aderyn](https://github.com/Cyfrin/aderyn) is available at [`report.md`](report.md).
 
 > A formal third-party audit has not yet been conducted. **Do not deploy to mainnet with real funds until a professional audit is completed.**
 
 ### Known Limitations
 
-- `CentralizedTradeOracle` is centralized by design — the oracle owner is a single EOA or multisig. A compromised oracle owner can submit false verifications. Migrate to a decentralized oracle (Chainlink Functions) for trustless operation.
-- The `protocolArbiter` should be a multisig (e.g. Gnosis Safe), not a single EOA.
-- Contracts are immutable by design — re-deployment is required for any upgrades.
+- `CentralizedTradeOracle` is centralized by design. A compromised oracle owner can submit false verifications. Deploy the `ChainlinkTradeOracle` for trustless operation.
+- The `protocolArbiter` should be a multisig (the included `ProtocolArbiterMultisig` or a Gnosis Safe), not a single EOA.
+- Contracts are immutable — re-deployment is required for upgrades.
+- Receivable NFTs represent protocol-internal claims and do not constitute legal instruments without off-chain legal framework.
 
 ---
 
 ## Roadmap
 
-- [x] Centralized `ITradeOracle` implementation (`CentralizedTradeOracle`)
-- [x] USDC / USDT token allowlist
-- [x] KYC gate on escrow creation
-- [ ] Multi-sig protocol arbiter integration (Gnosis Safe)
+- [x] Full cash-lock escrow with ETH and ERC20 support
+- [x] KYC gate and on-chain token allowlist
+- [x] Centralized oracle implementation (`CentralizedTradeOracle`)
+- [x] Chainlink Functions oracle implementation (`ChainlinkTradeOracle`)
+- [x] Two-tier dispute arbitration with timeout recovery
+- [x] Reputation-based fee tiers (BRONZE through DIAMOND)
+- [x] Payment Commitment mode with partial collateral
+- [x] Merkle-anchored document commitment system
+- [x] ERC-721 trade receivable NFTs (`CredenceReceivable`)
+- [x] Multi-signature protocol arbiter (`ProtocolArbiterMultisig`)
+- [x] Progressive deployment tiers (TESTNET through MATURE)
+- [x] Automated deployment script with environment configuration
+- [x] 238 tests with full feature coverage
 - [ ] Frontend interface for trade participants
 - [ ] Testnet deployment (Sepolia / Base Sepolia)
 - [ ] Third-party security audit
-- [ ] Decentralized oracle migration (Chainlink Functions)
 - [ ] Mainnet deployment
-- [ ] Subgraph indexing for trade history & analytics
+- [ ] Subgraph indexing for trade history and analytics
+- [ ] Secondary market integration for receivable NFTs
+- [ ] Multi-chain deployment (Arbitrum, Base, Optimism)
 
 ---
 
@@ -426,7 +635,7 @@ Contributions are welcome. Please follow these steps:
 3. Format code before opening a PR (`forge fmt`).
 4. Open a pull request with a clear description of the change and its motivation.
 
-For significant changes or new features, please open an issue first to discuss the approach before implementation.
+For significant changes or new features, please open an issue first to discuss the approach.
 
 ---
 

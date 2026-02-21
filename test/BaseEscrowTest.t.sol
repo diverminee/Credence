@@ -75,7 +75,7 @@ contract BaseEscrowTest is EscrowTestBase {
 
     function test_CreateEscrow_EmitsEvent() public {
         vm.expectEmit(true, true, true, true);
-        emit BaseEscrow.EscrowCreated(0, buyer, seller, ESCROW_AMOUNT);
+        emit BaseEscrow.EscrowCreated(0, buyer, seller, ESCROW_AMOUNT, address(0), 0, ESCROW_AMOUNT);
         vm.prank(buyer);
         escrow.createEscrow(seller, arbiter, address(0), ESCROW_AMOUNT, TRADE_ID, TRADE_DATA_HASH);
     }
@@ -103,7 +103,9 @@ contract BaseEscrowTest is EscrowTestBase {
     }
 
     function testRevert_Create_ExceedsMax() public {
-        uint256 tooMuch = escrow.MAX_ESCROW_AMOUNT() + 1;
+        // Upgrade to LAUNCH tier (50,000 limit) so we can test the max
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+        uint256 tooMuch = escrow.maxEscrowAmount() + 1;
         vm.expectRevert(BaseEscrow.AmountExceedsMaximum.selector);
         vm.prank(buyer);
         escrow.createEscrow(seller, arbiter, address(0), tooMuch, TRADE_ID, TRADE_DATA_HASH);
@@ -159,8 +161,8 @@ contract BaseEscrowTest is EscrowTestBase {
 
     function test_Fund_ETH_EmitsEvent() public {
         uint256 id = _createETHEscrow();
-        vm.expectEmit(true, false, false, true);
-        emit BaseEscrow.Funded(id, ESCROW_AMOUNT);
+        vm.expectEmit(true, true, false, true);
+        emit BaseEscrow.EscrowFunded(id, buyer, ESCROW_AMOUNT, block.timestamp);
         vm.prank(buyer);
         escrow.fund{value: ESCROW_AMOUNT}(id);
     }
@@ -335,5 +337,107 @@ contract BaseEscrowTest is EscrowTestBase {
     function testRevert_TransferOwnership_ZeroAddress() public {
         vm.expectRevert(BaseEscrow.InvalidAddresses.selector);
         escrow.transferOwnership(address(0));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Deployment Tier & Max Escrow Amount
+    // ═══════════════════════════════════════════════════════════════════
+
+    function test_Tier_DefaultsToTestnet() public view {
+        assertEq(uint8(escrow.currentTier()), uint8(EscrowTypes.DeploymentTier.TESTNET));
+        assertEq(escrow.maxEscrowAmount(), type(uint256).max);
+    }
+
+    function test_UpgradeTier_ToLaunch() public {
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+        assertEq(uint8(escrow.currentTier()), uint8(EscrowTypes.DeploymentTier.LAUNCH));
+        assertEq(escrow.maxEscrowAmount(), escrow.LAUNCH_LIMIT());
+    }
+
+    function test_UpgradeTier_ToGrowth() public {
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.GROWTH);
+        assertEq(uint8(escrow.currentTier()), uint8(EscrowTypes.DeploymentTier.GROWTH));
+        assertEq(escrow.maxEscrowAmount(), escrow.GROWTH_LIMIT());
+    }
+
+    function test_UpgradeTier_ToMature() public {
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.MATURE);
+        assertEq(uint8(escrow.currentTier()), uint8(EscrowTypes.DeploymentTier.MATURE));
+        assertEq(escrow.maxEscrowAmount(), escrow.MATURE_LIMIT());
+    }
+
+    function testRevert_UpgradeTier_CannotDecrease() public {
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.GROWTH);
+        vm.expectRevert(BaseEscrow.TierCanOnlyIncrease.selector);
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+    }
+
+    function testRevert_UpgradeTier_CannotStaySame() public {
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+        vm.expectRevert(BaseEscrow.TierCanOnlyIncrease.selector);
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+    }
+
+    function testRevert_UpgradeTier_NotOwner() public {
+        vm.expectRevert(BaseEscrow.NotOwner.selector);
+        vm.prank(stranger);
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+    }
+
+    function test_UpgradeTier_EmitsEvent() public {
+        vm.expectEmit(true, true, false, true);
+        emit BaseEscrow.DeploymentTierUpgraded(0, 1, escrow.LAUNCH_LIMIT());
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+    }
+
+    function test_SetMaxEscrowAmount_WithinCeiling() public {
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+        uint256 customLimit = 25_000e18;
+        escrow.setMaxEscrowAmount(customLimit);
+        assertEq(escrow.maxEscrowAmount(), customLimit);
+    }
+
+    function testRevert_SetMaxEscrowAmount_AboveCeiling() public {
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+        uint256 aboveCeiling = escrow.LAUNCH_LIMIT() + 1;
+        vm.expectRevert(BaseEscrow.AmountExceedsTierCeiling.selector);
+        escrow.setMaxEscrowAmount(aboveCeiling);
+    }
+
+    function testRevert_SetMaxEscrowAmount_NotOwner() public {
+        vm.expectRevert(BaseEscrow.NotOwner.selector);
+        vm.prank(stranger);
+        escrow.setMaxEscrowAmount(1000);
+    }
+
+    function test_EscrowCreation_FailsAboveLimit_AtLaunchTier() public {
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+        uint256 aboveLimit = escrow.LAUNCH_LIMIT() + 1;
+        vm.expectRevert(BaseEscrow.AmountExceedsMaximum.selector);
+        vm.prank(buyer);
+        escrow.createEscrow(seller, arbiter, address(0), aboveLimit, TRADE_ID, TRADE_DATA_HASH);
+    }
+
+    function test_EscrowCreation_AllowedAtLimit() public {
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+        uint256 atLimit = escrow.LAUNCH_LIMIT();
+        vm.prank(buyer);
+        uint256 id = escrow.createEscrow(seller, arbiter, address(0), atLimit, TRADE_ID, TRADE_DATA_HASH);
+        assertTrue(escrow.escrowIsValid(id));
+    }
+
+    function test_ExistingEscrows_UnaffectedByTierChange() public {
+        // Create escrow at TESTNET (unlimited)
+        vm.prank(buyer);
+        uint256 id = escrow.createEscrow(seller, arbiter, address(0), 1_000_000e18, TRADE_ID, TRADE_DATA_HASH);
+
+        // Upgrade to LAUNCH (50K limit)
+        escrow.upgradeTier(EscrowTypes.DeploymentTier.LAUNCH);
+
+        // Existing escrow should still be valid and accessible
+        assertTrue(escrow.escrowIsValid(id));
+        EscrowTypes.EscrowTransaction memory txn = escrow.getEscrow(id);
+        assertEq(txn.amount, 1_000_000e18);
     }
 }

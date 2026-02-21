@@ -25,6 +25,12 @@ abstract contract EscrowTestBase is Test {
     bytes32 internal constant TRADE_DATA_HASH = keccak256("trade-data");
     uint256 internal constant TRADE_ID = 42;
 
+    // ── Document hashes for Merkle commitment tests ──────────────────
+    bytes32 internal constant INVOICE_HASH = keccak256("invoice");
+    bytes32 internal constant BOL_HASH = keccak256("bill-of-lading");
+    bytes32 internal constant PACKING_HASH = keccak256("packing-list");
+    bytes32 internal constant COO_HASH = keccak256("certificate-of-origin");
+
     // ── Timeouts (mirrors contract constants) ──────────────────────────────
     uint256 internal constant DISPUTE_TIMELOCK = 14 days;
     uint256 internal constant ESCALATION_TIMELOCK = 7 days;
@@ -88,6 +94,12 @@ abstract contract EscrowTestBase is Test {
         vm.warp(block.timestamp + DISPUTE_TIMELOCK + 1);
         vm.prank(buyer);
         escrow.escalateToProtocol(id);
+    }
+
+    /// Seller commits standard trade documents for a funded escrow
+    function _commitDocuments(uint256 id) internal {
+        vm.prank(seller);
+        escrow.commitDocuments(id, INVOICE_HASH, BOL_HASH, PACKING_HASH, COO_HASH);
     }
 
     /// Convenience: assert escrow state
