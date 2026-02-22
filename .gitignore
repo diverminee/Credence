@@ -5,6 +5,14 @@ lib/
 forge-std/
 report.md
 
+# Dependencies
+node_modules/
+
+# Git maintenance artifacts
+*.git/
+*.git.bfg-report/
+bfg*.jar
+
 # Ignores development broadcast logs
 !/broadcast
 /broadcast/*/31337/
