@@ -19,3 +19,12 @@ docs/
 .env
 .env.deployed
 .env.example
+
+# Claude Code — personal scratch (not project knowledge)
+.claude/scratch.md
+
+# Frontend (web/)
+web/.next/
+web/.env.local
+web/node_modules/
+.pnpm-store/
