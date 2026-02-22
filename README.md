@@ -24,6 +24,7 @@ The protocol introduces two settlement modes — full cash-lock escrow and parti
 - [Oracle Integration](#oracle-integration)
 - [Reputation and Fee Tiers](#reputation-and-fee-tiers)
 - [Dispute Resolution](#dispute-resolution)
+- [Trade Standards Reference (UCP 600 / URDTT)](#trade-standards-reference-ucp-600--urdtt)
 - [Deployment Tiers](#deployment-tiers)
 - [Contract Reference](#contract-reference)
 - [Getting Started](#getting-started)
@@ -377,6 +378,67 @@ FUNDED ──► DISPUTED ──► arbiter resolves (14-day window)
 **Abuse prevention:** Users with 10+ disputes initiated, or a >50% loss rate with 3+ losses, are blocked from raising further disputes.
 
 **Protocol Arbiter Multisig:** The `ProtocolArbiterMultisig` contract provides on-chain multi-signature governance for escalated disputes. Multiple signers vote on rulings, and resolution executes automatically when the threshold is met.
+
+---
+
+## Trade Standards Reference (UCP 600 / URDTT)
+
+Credence is not a letter of credit and does not claim UCP 600 compliance. It is a purpose-built escrow protocol that replaces the LC workflow entirely. However, institutional participants evaluating the protocol will look for functional equivalences to the mechanisms they already understand. This section maps Credence's on-chain primitives to the corresponding UCP 600 articles and ICC Digital Trade standards, and notes where the protocol intentionally departs.
+
+### UCP 600 Mapping
+
+UCP 600 (Uniform Customs and Practice for Documentary Credits, ICC Publication No. 600) is the governing ruleset for traditional letters of credit. The table below maps relevant articles to Credence equivalents.
+
+| UCP 600 Article | Traditional LC Mechanism | Credence Equivalent | Notes |
+| --------------- | ------------------------ | ------------------- | ----- |
+| **Art. 1-2** Application & Definitions | LC is a definite undertaking by the issuing bank | Smart contract escrow with deterministic release | No bank intermediary; the contract itself is the guarantor |
+| **Art. 5** Documents vs. Goods | Banks examine documents only, not goods | Oracle verifies document merkle root, not physical goods | Same abstraction: settlement is document-driven, not goods-driven |
+| **Art. 7** Issuing Bank Obligation | Bank must honour if documents comply | Contract releases funds when `confirmDelivery()` or `confirmByOracle()` is called with valid state | Deterministic — no discretionary refusal |
+| **Art. 14** Standard for Examination of Documents | 5 banking days to examine documents | No fixed examination window; buyer can call `confirmDelivery()` at any time after document commitment, or let oracle confirm | Faster: no mandatory waiting period. Buyer/oracle triggers immediate settlement |
+| **Art. 16** Discrepant Documents | Bank may refuse discrepant documents; applicant can waive | `raiseDispute()` opens 14-day primary arbitration window | Dispute replaces the bank's refusal right; arbiter replaces the bank's discretion |
+| **Art. 20-25** Transport Documents (B/L, etc.) | Specific rules for bills of lading, multimodal transport, etc. | `bolHash` field in `DocumentSet`; Merkle-committed on-chain | Protocol stores cryptographic commitment, not the document itself. Verification that the B/L matches is delegated to the oracle or buyer |
+| **Art. 28** Insurance Documents | LC may require insurance certificates | Not implemented on-chain | Extension point: insurance certificate hash can be included in `tradeDataHash` off-chain |
+| **Art. 29** Extension of Expiry Date | LC expiry can be extended by issuing bank | Payment Commitment has explicit `maturityDate`; no extension mechanism | Deliberate departure: maturity is immutable. Parties can create a new escrow if terms change |
+| **Art. 36** Force Majeure | Bank not liable for consequences of force majeure | No force majeure clause; `claimTimeout()` is the safety valve | Timeout recovery provides functional equivalent — if all parties are incapacitated, funds are recoverable after deadline expiry |
+| **Art. 38** Transferable Credit | LC can be transferred to a second beneficiary | Receivable NFT is freely transferable (ERC-721) before settlement | Stronger than UCP 600: NFT transfer is permissionless, instant, and composable with DeFi |
+| **Art. 39** Assignment of Proceeds | Beneficiary can assign LC proceeds | Receivable NFT transfer implicitly assigns the claim on escrowed funds | On-chain assignment via NFT transfer replaces paper-based assignment |
+
+### ICC Digital Trade Standards (URDTT)
+
+The ICC Uniform Rules for Digital Trade Transactions (URDTT, 2021) establish principles for paperless trade. Credence aligns with URDTT's core requirements:
+
+| URDTT Principle | Credence Implementation |
+| --------------- | ----------------------- |
+| **Functional equivalence** — digital records have the same legal effect as paper | Document hashes are Merkle-committed on-chain with timestamp. The `DocumentsCommitted` event provides an immutable, publicly verifiable record of document presentation |
+| **Technology neutrality** — rules apply regardless of technology | `ITradeOracle` interface is pluggable; `commitDocuments()` accepts any hash. The protocol is agnostic to document format, storage, and verification technology |
+| **Non-discrimination** — electronic documents not denied legal effect solely because they are electronic | On-chain Merkle proofs are cryptographically stronger than paper originals. Any party can independently verify document integrity against the committed root |
+| **Data integrity** — records must be reliably stored and reproducible | Blockchain provides append-only, tamper-evident storage. Document hashes and Merkle roots are permanently recorded and indexed via events |
+
+### Intentional Departures from UCP 600
+
+Credence departs from UCP 600 in several areas by design:
+
+1. **No issuing bank.** The smart contract replaces the bank's guarantee function. Funds are locked programmatically, not by institutional promise. This eliminates counterparty risk on the guarantor but requires the buyer to have capital (or collateral) upfront.
+
+2. **No advising/confirming bank chain.** UCP 600 assumes a multi-bank correspondent network. Credence operates peer-to-peer on a public blockchain. Any two KYC-approved addresses can transact directly.
+
+3. **No document examination discretion.** Under UCP 600, banks have discretion to accept or refuse documents. Credence's oracle returns a boolean — there is no discretionary middle ground. Disputes handle edge cases.
+
+4. **Fixed dispute timelines.** UCP 600's 5-day examination window and negotiation-based resolution are replaced by hard-coded deadlines: 14-day primary arbitration (`DISPUTE_TIMELOCK`), 7-day escalation (`ESCALATION_TIMELOCK`), and deterministic timeout recovery. These timelines are not negotiable per-trade.
+
+5. **No amendment workflow.** UCP 600 Art. 10 allows LC amendments with consent of all parties. Credence escrows are immutable once created. Changed terms require a new escrow.
+
+6. **Incoterms are off-chain.** UCP 600 LCs specify Incoterms (FOB, CIF, etc.) which determine risk transfer points. Credence's `tradeDataHash` can encode Incoterms off-chain, but the protocol does not interpret them. The oracle operator or dispute arbiter is responsible for evaluating whether delivery conditions match the agreed Incoterm.
+
+### For Compliance Officers
+
+If you are evaluating Credence for institutional use, the key takeaways are:
+
+- The protocol provides **functional equivalence** to irrevocable documentary credits for the buyer-protection and seller-payment mechanisms, without the bank intermediary layer.
+- **Settlement is deterministic**, not discretionary. This is stronger than UCP 600 for the seller (guaranteed payment if conditions are met) but removes the flexibility of bank-mediated negotiation.
+- **Dispute resolution** is time-bounded (14 + 7 days) and on-chain, replacing multi-jurisdictional litigation with arbiter-mediated resolution.
+- **Document integrity** is cryptographically guaranteed via Merkle proofs, exceeding the integrity guarantees of paper-based documentary credits.
+- The protocol does **not** replace the legal framework around trade — it replaces the financial intermediation layer. Off-chain contracts, insurance, and legal agreements remain necessary for the commercial relationship.
 
 ---
 
@@ -746,6 +808,7 @@ For responsible disclosure of security vulnerabilities, see [SECURITY.md](SECURI
 - [x] 301 tests with full feature coverage
 - [x] Emergency pause mechanism (OpenZeppelin Pausable)
 - [x] Security hardening: configurable bounds, mutable admin addresses, settled NFT locks, oracle merkle root verification, multisig governance actions
+- [x] UCP 600 / URDTT trade standards compliance reference
 - [x] Subgraph schema for trade history and analytics
 - [ ] Frontend interface for trade participants
 - [ ] Testnet deployment (Sepolia / Base Sepolia)
