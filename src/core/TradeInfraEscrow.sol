@@ -17,17 +17,19 @@ contract TradeInfraEscrow is DisputeEscrow {
     error DocumentsNotCommitted();
 
     // ============ Constructor ============
-    constructor(
-        address _oracleAddress,
-        address _feeRecipient,
-        address _protocolArbiter
-    ) DisputeEscrow(_oracleAddress, _feeRecipient, _protocolArbiter) {}
+    constructor(address _oracleAddress, address _feeRecipient, address _protocolArbiter)
+        DisputeEscrow(_oracleAddress, _feeRecipient, _protocolArbiter)
+    {}
 
     // ============ Events ============
     event DeliveryConfirmed(uint256 indexed escrowId, address indexed buyer, uint256 timestamp);
     event OracleConfirmed(uint256 indexed escrowId, bytes32 merkleRoot, uint256 timestamp);
-    event CommitmentFulfilled(uint256 indexed escrowId, address indexed buyer, uint256 remainingAmount, uint256 timestamp);
-    event CommitmentDefaulted(uint256 indexed escrowId, address indexed seller, uint256 collateralAmount, uint256 timestamp);
+    event CommitmentFulfilled(
+        uint256 indexed escrowId, address indexed buyer, uint256 remainingAmount, uint256 timestamp
+    );
+    event CommitmentDefaulted(
+        uint256 indexed escrowId, address indexed seller, uint256 collateralAmount, uint256 timestamp
+    );
 
     /// @notice Buyer manually confirms delivery and releases funds
     function confirmDelivery(uint256 _escrowId) external nonReentrant {
@@ -46,8 +48,9 @@ contract TradeInfraEscrow is DisputeEscrow {
         EscrowTypes.EscrowTransaction storage txn = escrows[_escrowId];
         if (txn.state != EscrowTypes.State.FUNDED) revert InvalidState();
 
-        if (escrowDocuments[_escrowId].merkleRoot == bytes32(0))
+        if (escrowDocuments[_escrowId].merkleRoot == bytes32(0)) {
             revert DocumentsNotCommitted();
+        }
 
         if (!oracle.verifyTradeData(txn.tradeDataHash)) {
             revert OracleVerificationFailed();
@@ -63,8 +66,9 @@ contract TradeInfraEscrow is DisputeEscrow {
         EscrowTypes.EscrowTransaction storage txn = escrows[_escrowId];
         if (txn.state != EscrowTypes.State.FUNDED) revert InvalidState();
         if (msg.sender != txn.buyer) revert OnlyBuyerCanFund();
-        if (txn.mode != EscrowTypes.EscrowMode.PAYMENT_COMMITMENT)
+        if (txn.mode != EscrowTypes.EscrowMode.PAYMENT_COMMITMENT) {
             revert NotPaymentCommitmentMode();
+        }
         if (txn.commitmentFulfilled) revert CommitmentAlreadyFulfilled();
         if (block.timestamp > txn.maturityDate) revert CommitmentOverdue();
 
@@ -87,8 +91,9 @@ contract TradeInfraEscrow is DisputeEscrow {
         EscrowTypes.EscrowTransaction storage txn = escrows[_escrowId];
         if (txn.state != EscrowTypes.State.FUNDED) revert InvalidState();
         if (msg.sender != txn.seller) revert OnlySellerCanClaimDefault();
-        if (txn.mode != EscrowTypes.EscrowMode.PAYMENT_COMMITMENT)
+        if (txn.mode != EscrowTypes.EscrowMode.PAYMENT_COMMITMENT) {
             revert NotPaymentCommitmentMode();
+        }
         if (txn.commitmentFulfilled) revert CommitmentAlreadyFulfilled();
         if (block.timestamp <= txn.maturityDate) revert CommitmentNotYetOverdue();
 
@@ -98,13 +103,11 @@ contract TradeInfraEscrow is DisputeEscrow {
     }
 
     /// @notice Get maturity status for a payment commitment escrow
-    function getMaturityStatus(uint256 _escrowId) external view returns (
-        bool isPC,
-        uint256 maturity,
-        bool fulfilled,
-        bool overdue,
-        uint256 remaining
-    ) {
+    function getMaturityStatus(uint256 _escrowId)
+        external
+        view
+        returns (bool isPC, uint256 maturity, bool fulfilled, bool overdue, uint256 remaining)
+    {
         if (!escrowExists[_escrowId]) revert EscrowNotFound();
         EscrowTypes.EscrowTransaction memory txn = escrows[_escrowId];
 
@@ -122,9 +125,7 @@ contract TradeInfraEscrow is DisputeEscrow {
     }
 
     /// @notice Get user's tier name as string
-    function getUserTierName(
-        address _user
-    ) external view returns (string memory) {
+    function getUserTierName(address _user) external view returns (string memory) {
         EscrowTypes.UserTier tier = getUserTier(_user);
         if (tier == EscrowTypes.UserTier.DIAMOND) return "DIAMOND";
         if (tier == EscrowTypes.UserTier.GOLD) return "GOLD";

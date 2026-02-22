@@ -48,6 +48,7 @@ contract ChainlinkOracleTest is Test {
     }
 
     function test_VerifyTradeData_ReturnsFalseAfterRequestButBeforeCallback() public {
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
         assertFalse(oracle.verifyTradeData(TRADE_HASH));
     }
@@ -57,6 +58,7 @@ contract ChainlinkOracleTest is Test {
     // ═══════════════════════════════════════════════════════════════════
 
     function test_VerifyTradeData_ReturnsTrueAfterSuccessfulCallback() public {
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
         bytes32 requestId = router.lastRequestId();
 
@@ -72,6 +74,7 @@ contract ChainlinkOracleTest is Test {
     // ═══════════════════════════════════════════════════════════════════
 
     function test_VerifyTradeData_ReturnsFalseAfterFailedCallback() public {
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
         bytes32 requestId = router.lastRequestId();
 
@@ -82,6 +85,7 @@ contract ChainlinkOracleTest is Test {
     }
 
     function test_VerifyTradeData_ReturnsFalseWhenResultIsFalse() public {
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
         bytes32 requestId = router.lastRequestId();
 
@@ -98,10 +102,12 @@ contract ChainlinkOracleTest is Test {
     function test_RequestVerification_EmitsEvent() public {
         vm.expectEmit(true, false, false, false);
         emit ChainlinkTradeOracle.VerificationRequested(TRADE_HASH, bytes32(0));
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
     }
 
     function test_FulfillRequest_EmitsEvent() public {
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
         bytes32 requestId = router.lastRequestId();
 
@@ -116,6 +122,7 @@ contract ChainlinkOracleTest is Test {
     // ═══════════════════════════════════════════════════════════════════
 
     function test_PendingRequest_TrueBeforeFulfillment() public {
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
         (bool pending, bytes32 requestId) = oracle.getPendingRequest(TRADE_HASH);
         assertTrue(pending);
@@ -123,6 +130,7 @@ contract ChainlinkOracleTest is Test {
     }
 
     function test_PendingRequest_FalseAfterFulfillment() public {
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
         bytes32 requestId = router.lastRequestId();
 
@@ -137,19 +145,23 @@ contract ChainlinkOracleTest is Test {
     // ═══════════════════════════════════════════════════════════════════
 
     function testRevert_ReRequest_BeforeTimeout() public {
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
 
         vm.expectRevert(ChainlinkTradeOracle.RequestAlreadyPending.selector);
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
     }
 
     function test_ReRequest_AllowedAfterTimeout() public {
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
         bytes32 firstRequestId = router.lastRequestId();
 
         vm.warp(block.timestamp + 24 hours + 1);
 
         // Should not revert
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK456");
         bytes32 secondRequestId = router.lastRequestId();
 
@@ -157,12 +169,14 @@ contract ChainlinkOracleTest is Test {
     }
 
     function test_ReRequest_AllowedAfterFulfillment() public {
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
         bytes32 requestId = router.lastRequestId();
 
         router.fulfillRequest(address(oracle), requestId, abi.encode(true), "");
 
         // Can re-request after fulfillment
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK456");
     }
 
@@ -171,6 +185,7 @@ contract ChainlinkOracleTest is Test {
     // ═══════════════════════════════════════════════════════════════════
 
     function testRevert_HandleOracleFulfillment_NotRouter() public {
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "TRACK123");
         bytes32 requestId = router.lastRequestId();
 
@@ -186,7 +201,14 @@ contract ChainlinkOracleTest is Test {
 
     function testRevert_RequestVerification_EmptyTracking() public {
         vm.expectRevert(ChainlinkTradeOracle.EmptyTrackingReference.selector);
+        vm.prank(owner);
         oracle.requestVerification(TRADE_HASH, "");
+    }
+
+    function testRevert_RequestVerification_NotOwner() public {
+        vm.expectRevert(ChainlinkTradeOracle.OnlyOwner.selector);
+        vm.prank(stranger);
+        oracle.requestVerification(TRADE_HASH, "TRACK123");
     }
 
     // ═══════════════════════════════════════════════════════════════════

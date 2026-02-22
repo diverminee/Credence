@@ -12,6 +12,7 @@ library EscrowTypes {
         REFUNDED,
         DISPUTED,
         ESCALATED // Escalated to protocol arbiter after primary arbiter timeout
+
     }
 
     enum UserTier {

@@ -84,9 +84,10 @@ contract ChainlinkTradeOracle is FunctionsClient, ITradeOracle {
     // ============ External Functions ============
 
     /// @notice Request verification of trade data via Chainlink Functions
+    /// @dev Restricted to owner to prevent unauthorized subscription drain
     /// @param tradeDataHash The trade data hash to verify
     /// @param trackingReference Shipping tracking reference passed to the JS source
-    function requestVerification(bytes32 tradeDataHash, string calldata trackingReference) external {
+    function requestVerification(bytes32 tradeDataHash, string calldata trackingReference) external onlyOwner {
         if (bytes(trackingReference).length == 0) revert EmptyTrackingReference();
 
         // Check if there's already a pending request
