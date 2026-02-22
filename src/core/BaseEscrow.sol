@@ -2,8 +2,13 @@
 pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    ReentrancyGuard
+} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ITradeOracle} from "../interfaces/ITradeOracle.sol";
 import {IReceivableMinter} from "../interfaces/IReceivableMinter.sol";
 import {EscrowTypes} from "../libraries/EscrowTypes.sol";
@@ -12,7 +17,7 @@ import {ReputationLibrary} from "../libraries/ReputationLibrary.sol";
 /// @title Base Escrow Contract
 /// @notice Core escrow logic with reputation system, KYC, tiers, documents, receivables
 /// @dev Abstract contract providing foundational escrow functionality
-abstract contract BaseEscrow is ReentrancyGuard {
+abstract contract BaseEscrow is ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // ============ State Variables ============
@@ -106,22 +111,58 @@ abstract contract BaseEscrow is ReentrancyGuard {
         uint8 mode,
         uint256 faceValue
     );
-    event EscrowFunded(uint256 indexed escrowId, address indexed buyer, uint256 amount, uint256 timestamp);
-    event EscrowSettled(uint256 indexed escrowId, address indexed recipient, uint256 amount, uint256 fee);
-    event EscrowRefunded(uint256 indexed escrowId, address indexed recipient, uint256 amount);
+    event EscrowFunded(
+        uint256 indexed escrowId,
+        address indexed buyer,
+        uint256 amount,
+        uint256 timestamp
+    );
+    event EscrowSettled(
+        uint256 indexed escrowId,
+        address indexed recipient,
+        uint256 amount,
+        uint256 fee
+    );
+    event EscrowRefunded(
+        uint256 indexed escrowId,
+        address indexed recipient,
+        uint256 amount
+    );
     event KYCStatusUpdated(address indexed user, bool status);
     event ApprovedTokenAdded(address indexed token);
     event ApprovedTokenRemoved(address indexed token);
-    event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
-    event DeploymentTierUpgraded(uint8 indexed oldTier, uint8 indexed newTier, uint256 maxAmount);
-    event DocumentsCommitted(uint256 indexed escrowId, bytes32 merkleRoot, uint256 timestamp);
+    event OwnershipTransferred(
+        address indexed oldOwner,
+        address indexed newOwner
+    );
+    event DeploymentTierUpgraded(
+        uint8 indexed oldTier,
+        uint8 indexed newTier,
+        uint256 maxAmount
+    );
+    event DocumentsCommitted(
+        uint256 indexed escrowId,
+        bytes32 merkleRoot,
+        uint256 timestamp
+    );
     event ReceivableMinted(uint256 indexed escrowId, uint256 tokenId);
     event ReceivableMintFailed(uint256 indexed escrowId, bytes reason);
-    event ReceivableMinterUpdated(address indexed oldMinter, address indexed newMinter);
+    event ReceivableMinterUpdated(
+        address indexed oldMinter,
+        address indexed newMinter
+    );
 
     // ============ Constructor ============
-    constructor(address _oracleAddress, address _feeRecipient, address _protocolArbiter) {
-        if (_oracleAddress == address(0) || _feeRecipient == address(0) || _protocolArbiter == address(0)) {
+    constructor(
+        address _oracleAddress,
+        address _feeRecipient,
+        address _protocolArbiter
+    ) {
+        if (
+            _oracleAddress == address(0) ||
+            _feeRecipient == address(0) ||
+            _protocolArbiter == address(0)
+        ) {
             revert InvalidAddresses();
         }
         if (_protocolArbiter == _feeRecipient) revert InvalidAddresses();
@@ -148,10 +189,19 @@ abstract contract BaseEscrow is ReentrancyGuard {
         uint256 _amount,
         uint256 _tradeId,
         bytes32 _tradeDataHash
-    ) external returns (uint256) {
-        return _createEscrowInternal(
-            _seller, _arbiter, _token, _amount, _tradeId, _tradeDataHash, EscrowTypes.EscrowMode.CASH_LOCK, 0, 0
-        );
+    ) external whenNotPaused returns (uint256) {
+        return
+            _createEscrowInternal(
+                _seller,
+                _arbiter,
+                _token,
+                _amount,
+                _tradeId,
+                _tradeDataHash,
+                EscrowTypes.EscrowMode.CASH_LOCK,
+                0,
+                0
+            );
     }
 
     /// @notice Create a new escrow with explicit mode (9-param)
@@ -165,14 +215,25 @@ abstract contract BaseEscrow is ReentrancyGuard {
         EscrowTypes.EscrowMode _mode,
         uint256 _maturityDays,
         uint256 _collateralBps
-    ) external returns (uint256) {
-        return _createEscrowInternal(
-            _seller, _arbiter, _token, _amount, _tradeId, _tradeDataHash, _mode, _maturityDays, _collateralBps
-        );
+    ) external whenNotPaused returns (uint256) {
+        return
+            _createEscrowInternal(
+                _seller,
+                _arbiter,
+                _token,
+                _amount,
+                _tradeId,
+                _tradeDataHash,
+                _mode,
+                _maturityDays,
+                _collateralBps
+            );
     }
 
     /// @notice Fund the escrow with ETH or ERC20 tokens
-    function fund(uint256 _escrowId) external payable nonReentrant {
+    function fund(
+        uint256 _escrowId
+    ) external payable nonReentrant whenNotPaused {
         if (!escrowExists[_escrowId]) revert EscrowNotFound();
         EscrowTypes.EscrowTransaction storage txn = escrows[_escrowId];
         if (txn.state != EscrowTypes.State.DRAFT) revert InvalidState();
@@ -182,11 +243,20 @@ abstract contract BaseEscrow is ReentrancyGuard {
             if (msg.value != txn.collateralAmount) revert IncorrectETHAmount();
         } else {
             if (msg.value > 0) revert NoETHForERC20Escrow();
-            IERC20(txn.token).safeTransferFrom(msg.sender, address(this), txn.collateralAmount);
+            IERC20(txn.token).safeTransferFrom(
+                msg.sender,
+                address(this),
+                txn.collateralAmount
+            );
         }
 
         txn.state = EscrowTypes.State.FUNDED;
-        emit EscrowFunded(_escrowId, msg.sender, txn.collateralAmount, block.timestamp);
+        emit EscrowFunded(
+            _escrowId,
+            msg.sender,
+            txn.collateralAmount,
+            block.timestamp
+        );
     }
 
     /// @notice Commit trade documents with Merkle root
@@ -205,10 +275,18 @@ abstract contract BaseEscrow is ReentrancyGuard {
         EscrowTypes.DocumentSet storage docs = escrowDocuments[_escrowId];
         if (docs.committedAt != 0) revert DocumentsAlreadyCommitted();
         if (
-            _invoiceHash == bytes32(0) && _bolHash == bytes32(0) && _packingHash == bytes32(0) && _cooHash == bytes32(0)
+            _invoiceHash == bytes32(0) &&
+            _bolHash == bytes32(0) &&
+            _packingHash == bytes32(0) &&
+            _cooHash == bytes32(0)
         ) revert NoDocumentHashes();
 
-        bytes32 merkleRoot = _computeMerkleRoot(_invoiceHash, _bolHash, _packingHash, _cooHash);
+        bytes32 merkleRoot = _computeMerkleRoot(
+            _invoiceHash,
+            _bolHash,
+            _packingHash,
+            _cooHash
+        );
 
         docs.invoiceHash = _invoiceHash;
         docs.bolHash = _bolHash;
@@ -220,10 +298,20 @@ abstract contract BaseEscrow is ReentrancyGuard {
         emit DocumentsCommitted(_escrowId, merkleRoot, block.timestamp);
 
         // Mint receivable NFT for PAYMENT_COMMITMENT escrows
-        if (txn.mode == EscrowTypes.EscrowMode.PAYMENT_COMMITMENT && receivableMinter != address(0)) {
-            try IReceivableMinter(receivableMinter).mintReceivable(
-                _escrowId, txn.seller, txn.faceValue, txn.maturityDate, merkleRoot, txn.token
-            ) returns (uint256 tokenId) {
+        if (
+            txn.mode == EscrowTypes.EscrowMode.PAYMENT_COMMITMENT &&
+            receivableMinter != address(0)
+        ) {
+            try
+                IReceivableMinter(receivableMinter).mintReceivable(
+                    _escrowId,
+                    txn.seller,
+                    txn.faceValue,
+                    txn.maturityDate,
+                    merkleRoot,
+                    txn.token
+                )
+            returns (uint256 tokenId) {
                 escrowToReceivableTokenId[_escrowId] = tokenId;
                 emit ReceivableMinted(_escrowId, tokenId);
             } catch (bytes memory reason) {
@@ -245,7 +333,10 @@ abstract contract BaseEscrow is ReentrancyGuard {
     /// @notice Set KYC approval status for multiple users in a single call
     /// @param _users Array of addresses to update
     /// @param _status True to approve, false to revoke
-    function batchSetKYCStatus(address[] calldata _users, bool _status) external onlyOwner {
+    function batchSetKYCStatus(
+        address[] calldata _users,
+        bool _status
+    ) external onlyOwner {
         for (uint256 i = 0; i < _users.length; i++) {
             kycApproved[_users[i]] = _status;
             emit KYCStatusUpdated(_users[i], _status);
@@ -277,7 +368,9 @@ abstract contract BaseEscrow is ReentrancyGuard {
 
     /// @notice Upgrade the deployment tier (one-way, cannot decrease)
     /// @param _newTier New tier to upgrade to (must be higher than current)
-    function upgradeTier(EscrowTypes.DeploymentTier _newTier) external onlyOwner {
+    function upgradeTier(
+        EscrowTypes.DeploymentTier _newTier
+    ) external onlyOwner {
         if (uint8(_newTier) <= uint8(currentTier)) revert TierCanOnlyIncrease();
         uint8 oldTier = uint8(currentTier);
         currentTier = _newTier;
@@ -288,7 +381,8 @@ abstract contract BaseEscrow is ReentrancyGuard {
     /// @notice Set a custom max escrow amount within the current tier ceiling
     /// @param _amount New maximum (must not exceed tier ceiling)
     function setMaxEscrowAmount(uint256 _amount) external onlyOwner {
-        if (_amount > _getTierCeiling(currentTier)) revert AmountExceedsTierCeiling();
+        if (_amount > _getTierCeiling(currentTier))
+            revert AmountExceedsTierCeiling();
         maxEscrowAmount = _amount;
     }
 
@@ -298,6 +392,18 @@ abstract contract BaseEscrow is ReentrancyGuard {
         address oldMinter = receivableMinter;
         receivableMinter = _minter;
         emit ReceivableMinterUpdated(oldMinter, _minter);
+    }
+
+    /// @notice Pause the contract — blocks createEscrow, fund, and fulfillCommitment
+    /// @dev Only callable by the contract owner. Existing escrows can still settle and dispute.
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Unpause the contract — restores normal operation
+    /// @dev Only callable by the contract owner.
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     // ============ Internal Functions ============
@@ -313,7 +419,8 @@ abstract contract BaseEscrow is ReentrancyGuard {
         uint256 _maturityDays,
         uint256 _collateralBps
     ) internal returns (uint256) {
-        if (_seller == address(0) || _arbiter == address(0)) revert InvalidAddresses();
+        if (_seller == address(0) || _arbiter == address(0))
+            revert InvalidAddresses();
         if (_amount == 0) revert InvalidAmount();
         if (_amount < MIN_ESCROW_AMOUNT) revert AmountBelowMinimum();
         if (_amount > maxEscrowAmount) revert AmountExceedsMaximum();
@@ -330,8 +437,10 @@ abstract contract BaseEscrow is ReentrancyGuard {
         if (!kycApproved[_seller]) revert NotKYCApproved();
 
         // Snapshot seller's fee rate at creation time
-        EscrowTypes.UserTier sellerTier =
-            ReputationLibrary.getUserTier(successfulTrades[_seller], disputesLost[_seller]);
+        EscrowTypes.UserTier sellerTier = ReputationLibrary.getUserTier(
+            successfulTrades[_seller],
+            disputesLost[_seller]
+        );
         uint256 feeRate = ReputationLibrary.getFeeRate(sellerTier);
 
         // Calculate payment commitment fields
@@ -340,12 +449,19 @@ abstract contract BaseEscrow is ReentrancyGuard {
         uint256 maturityDate;
 
         if (_mode == EscrowTypes.EscrowMode.PAYMENT_COMMITMENT) {
-            collateralBps = _collateralBps == 0 ? DEFAULT_COLLATERAL_BPS : _collateralBps;
-            if (collateralBps < MIN_COLLATERAL_BPS || collateralBps > MAX_COLLATERAL_BPS) {
+            collateralBps = _collateralBps == 0
+                ? DEFAULT_COLLATERAL_BPS
+                : _collateralBps;
+            if (
+                collateralBps < MIN_COLLATERAL_BPS ||
+                collateralBps > MAX_COLLATERAL_BPS
+            ) {
                 revert InvalidCollateralBps();
             }
             collateralAmount = (_amount * collateralBps) / BPS_BASE;
-            uint256 maturityDays = _maturityDays == 0 ? DEFAULT_MATURITY_DAYS : _maturityDays;
+            uint256 maturityDays = _maturityDays == 0
+                ? DEFAULT_MATURITY_DAYS
+                : _maturityDays;
             maturityDate = block.timestamp + maturityDays * 1 days;
         } else {
             collateralAmount = _amount;
@@ -375,7 +491,15 @@ abstract contract BaseEscrow is ReentrancyGuard {
         });
 
         escrowExists[escrowId] = true;
-        emit EscrowCreated(escrowId, msg.sender, _seller, _amount, _token, uint8(_mode), _amount);
+        emit EscrowCreated(
+            escrowId,
+            msg.sender,
+            _seller,
+            _amount,
+            _token,
+            uint8(_mode),
+            _amount
+        );
         return escrowId;
     }
 
@@ -383,15 +507,18 @@ abstract contract BaseEscrow is ReentrancyGuard {
     function _releaseFunds(uint256 _escrowId, address _recipient) internal {
         EscrowTypes.EscrowTransaction storage txn = escrows[_escrowId];
         if (
-            txn.state != EscrowTypes.State.FUNDED && txn.state != EscrowTypes.State.DISPUTED
-                && txn.state != EscrowTypes.State.ESCALATED
+            txn.state != EscrowTypes.State.FUNDED &&
+            txn.state != EscrowTypes.State.DISPUTED &&
+            txn.state != EscrowTypes.State.ESCALATED
         ) {
             revert InvalidState();
         }
 
         txn.state = EscrowTypes.State.RELEASED;
 
-        uint256 payoutAmount = txn.commitmentFulfilled ? txn.amount : txn.collateralAmount;
+        uint256 payoutAmount = txn.commitmentFulfilled
+            ? txn.amount
+            : txn.collateralAmount;
         uint256 feeAmount = (payoutAmount * txn.feeRate) / 1000;
         uint256 recipientAmount = payoutAmount - feeAmount;
 
@@ -410,15 +537,18 @@ abstract contract BaseEscrow is ReentrancyGuard {
     function _refundFunds(uint256 _escrowId, address _recipient) internal {
         EscrowTypes.EscrowTransaction storage txn = escrows[_escrowId];
         if (
-            txn.state != EscrowTypes.State.FUNDED && txn.state != EscrowTypes.State.DISPUTED
-                && txn.state != EscrowTypes.State.ESCALATED
+            txn.state != EscrowTypes.State.FUNDED &&
+            txn.state != EscrowTypes.State.DISPUTED &&
+            txn.state != EscrowTypes.State.ESCALATED
         ) {
             revert InvalidState();
         }
 
         txn.state = EscrowTypes.State.REFUNDED;
 
-        uint256 refundAmount = txn.commitmentFulfilled ? txn.amount : txn.collateralAmount;
+        uint256 refundAmount = txn.commitmentFulfilled
+            ? txn.amount
+            : txn.collateralAmount;
 
         _settleReceivable(_escrowId);
 
@@ -430,21 +560,32 @@ abstract contract BaseEscrow is ReentrancyGuard {
     function _settleReceivable(uint256 _escrowId) internal {
         uint256 tokenId = escrowToReceivableTokenId[_escrowId];
         if (tokenId != 0 && receivableMinter != address(0)) {
-            try IReceivableMinter(receivableMinter).settleReceivable(tokenId) {} catch {}
+            try
+                IReceivableMinter(receivableMinter).settleReceivable(tokenId)
+            {} catch {}
         }
     }
 
-    function _transferFunds(address token, address recipient, uint256 amount) internal {
+    function _transferFunds(
+        address token,
+        address recipient,
+        uint256 amount
+    ) internal {
         if (amount == 0) return;
         if (token == address(0)) {
-            (bool sent,) = payable(recipient).call{value: amount}("");
+            (bool sent, ) = payable(recipient).call{value: amount}("");
             if (!sent) revert ETHTransferFailed();
         } else {
             IERC20(token).safeTransfer(recipient, amount);
         }
     }
 
-    function _computeMerkleRoot(bytes32 h1, bytes32 h2, bytes32 h3, bytes32 h4) internal pure returns (bytes32) {
+    function _computeMerkleRoot(
+        bytes32 h1,
+        bytes32 h2,
+        bytes32 h3,
+        bytes32 h4
+    ) internal pure returns (bytes32) {
         bytes32[] memory leaves = new bytes32[](4);
         uint256 count = 0;
         if (h1 != bytes32(0)) leaves[count++] = h1;
@@ -459,7 +600,9 @@ abstract contract BaseEscrow is ReentrancyGuard {
             uint256 newCount = 0;
             for (uint256 i = 0; i < count; i += 2) {
                 if (i + 1 < count) {
-                    leaves[newCount++] = keccak256(abi.encodePacked(leaves[i], leaves[i + 1]));
+                    leaves[newCount++] = keccak256(
+                        abi.encodePacked(leaves[i], leaves[i + 1])
+                    );
                 } else {
                     leaves[newCount++] = leaves[i];
                 }
@@ -470,7 +613,9 @@ abstract contract BaseEscrow is ReentrancyGuard {
         return leaves[0];
     }
 
-    function _getTierCeiling(EscrowTypes.DeploymentTier tier) internal pure returns (uint256) {
+    function _getTierCeiling(
+        EscrowTypes.DeploymentTier tier
+    ) internal pure returns (uint256) {
         if (tier == EscrowTypes.DeploymentTier.LAUNCH) return LAUNCH_LIMIT;
         if (tier == EscrowTypes.DeploymentTier.GROWTH) return GROWTH_LIMIT;
         if (tier == EscrowTypes.DeploymentTier.MATURE) return MATURE_LIMIT;
@@ -482,7 +627,9 @@ abstract contract BaseEscrow is ReentrancyGuard {
     /// @notice Retrieve full escrow transaction details
     /// @param _escrowId ID of the escrow
     /// @return The escrow transaction struct
-    function getEscrow(uint256 _escrowId) external view returns (EscrowTypes.EscrowTransaction memory) {
+    function getEscrow(
+        uint256 _escrowId
+    ) external view returns (EscrowTypes.EscrowTransaction memory) {
         if (!escrowExists[_escrowId]) revert EscrowNotFound();
         return escrows[_escrowId];
     }
@@ -496,15 +643,24 @@ abstract contract BaseEscrow is ReentrancyGuard {
     /// @notice Get the reputation tier for a user based on trade history
     /// @param _user Address to look up
     /// @return The user's current reputation tier
-    function getUserTier(address _user) public view returns (EscrowTypes.UserTier) {
-        return ReputationLibrary.getUserTier(successfulTrades[_user], disputesLost[_user]);
+    function getUserTier(
+        address _user
+    ) public view returns (EscrowTypes.UserTier) {
+        return
+            ReputationLibrary.getUserTier(
+                successfulTrades[_user],
+                disputesLost[_user]
+            );
     }
 
     /// @notice Get the per-mille fee rate for a user based on their reputation tier
     /// @param _user Address to look up
     /// @return Fee rate in per-mille (e.g. 30 = 3.0%)
     function getUserFeeRate(address _user) external view returns (uint256) {
-        EscrowTypes.UserTier tier = ReputationLibrary.getUserTier(successfulTrades[_user], disputesLost[_user]);
+        EscrowTypes.UserTier tier = ReputationLibrary.getUserTier(
+            successfulTrades[_user],
+            disputesLost[_user]
+        );
         return ReputationLibrary.getFeeRate(tier);
     }
 
@@ -513,14 +669,22 @@ abstract contract BaseEscrow is ReentrancyGuard {
     /// @return trades Number of successful trades
     /// @return initiated Number of disputes initiated
     /// @return lost Number of disputes lost
-    function getUserStats(address _user) external view returns (uint256 trades, uint256 initiated, uint256 lost) {
-        return (successfulTrades[_user], disputesInitiated[_user], disputesLost[_user]);
+    function getUserStats(
+        address _user
+    ) external view returns (uint256 trades, uint256 initiated, uint256 lost) {
+        return (
+            successfulTrades[_user],
+            disputesInitiated[_user],
+            disputesLost[_user]
+        );
     }
 
     /// @notice Get the receivable NFT token ID minted for an escrow
     /// @param _escrowId ID of the escrow
     /// @return Token ID (0 if no receivable was minted)
-    function getReceivableTokenId(uint256 _escrowId) external view returns (uint256) {
+    function getReceivableTokenId(
+        uint256 _escrowId
+    ) external view returns (uint256) {
         return escrowToReceivableTokenId[_escrowId];
     }
 }

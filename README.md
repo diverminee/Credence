@@ -421,6 +421,9 @@ Tiers can only be upgraded (never downgraded) by the contract owner via `upgrade
 | `upgradeTier(tier)`                                           | Owner            | Upgrade deployment tier                             |
 | `setMaxEscrowAmount(amount)`                                  | Owner            | Set max within tier ceiling                         |
 | `setReceivableMinter(minter)`                                 | Owner            | Register receivable NFT contract                    |
+| `pause()`                                                     | Owner            | Emergency pause — blocks createEscrow, fund, fulfillCommitment |
+| `unpause()`                                                   | Owner            | Restore normal operation after pause                |
+| `paused()`                                                    | View             | Returns true if contract is paused                  |
 | `transferOwnership(newOwner)`                                 | Owner            | Transfer admin rights                               |
 | `getEscrow(id)`                                               | View             | Return escrow transaction data                      |
 | `getMaturityStatus(id)`                                       | View             | Return maturity and fulfillment status              |
@@ -496,6 +499,8 @@ All state transitions emit indexed events for off-chain indexing, analytics, and
 | `OwnershipTransferred`   | `address indexed oldOwner, address indexed newOwner`                                          |
 | `DeploymentTierUpgraded` | `uint8 indexed oldTier, uint8 indexed newTier, uint256 maxAmount`                             |
 | `ReceivableMinterUpdated`| `address indexed oldMinter, address indexed newMinter`                                        |
+| `Paused`                 | `address account` (inherited from OpenZeppelin Pausable)                                      |
+| `Unpaused`               | `address account` (inherited from OpenZeppelin Pausable)                                      |
 
 **DisputeEscrow**
 
@@ -587,7 +592,7 @@ anvil
 ## Testing
 
 ```shell
-# Run all 239 tests
+# Run all 266 tests
 forge test
 
 # Verbose output with traces
@@ -611,8 +616,9 @@ forge snapshot
 | `ReceivableTest.t.sol`              | 16    | NFT minting, settlement, metadata, failure resilience                  |
 | `DocumentCommitmentTest.t.sol`      | 14    | Merkle tree (1-4 leaves), document anchoring, oracle gating            |
 | `ProtocolArbiterMultisigTest.t.sol` | 12    | Multisig proposals, approvals, execution, revocation                   |
+| `PauseTest.t.sol`                   | 27    | Emergency pause access control, inflow blocking, settlement during pause, E2E flows |
 
-**239 tests, 0 failures.**
+**266 tests, 0 failures.**
 
 > Tests run with `jobs = 1` (set in `foundry.toml`). The deploy test suite uses `vm.setEnv` to test environment variable overrides; parallel execution would create race conditions on the shared OS process environment.
 
@@ -681,6 +687,7 @@ The deploy script deploys the oracle, `TradeInfraEscrow`, and `CredenceReceivabl
 - **Dispute rate limiting** — users with 10+ disputes or >50% loss rate (3+ losses) are blocked from raising further disputes.
 - **Amount bounds** — `MIN_ESCROW_AMOUNT = 1,000` prevents dust attacks. Deployment tier caps prevent overexposure.
 - **Non-custodial** — no admin function can unilaterally drain funds; all fund movements require valid state transitions.
+- **Emergency pause** — owner can pause capital inflow (`createEscrow`, `fund`, `fulfillCommitment`) while leaving settlement, disputes, and safety-valve functions operational. Pausing never traps funds.
 - **Resilient minting** — receivable NFT minting uses `try/catch` so a failing minter never blocks escrow operations.
 - **Document gating** — oracle confirmation requires prior document commitment, preventing settlement without a verifiable document trail.
 - **Collateral bounds** — Payment Commitment collateral is bounded to 10-50% of face value, preventing both under-collateralization and economic equivalence to Cash Lock.
@@ -690,6 +697,8 @@ The deploy script deploys the oracle, `TradeInfraEscrow`, and `CredenceReceivabl
 Static analysis has been performed using [Aderyn](https://github.com/Cyfrin/aderyn). You can regenerate the report by running `aderyn .` from the project root.
 
 > A formal third-party audit has not yet been conducted. **Do not deploy to mainnet with real funds until a professional audit is completed.**
+
+For responsible disclosure of security vulnerabilities, see [SECURITY.md](SECURITY.md).
 
 ### Known Limitations
 
@@ -715,7 +724,8 @@ Static analysis has been performed using [Aderyn](https://github.com/Cyfrin/ader
 - [x] Multi-signature protocol arbiter (`ProtocolArbiterMultisig`)
 - [x] Progressive deployment tiers (TESTNET through MATURE)
 - [x] Automated deployment script with environment configuration
-- [x] 239 tests with full feature coverage
+- [x] 266 tests with full feature coverage
+- [x] Emergency pause mechanism (OpenZeppelin Pausable)
 - [x] Subgraph schema for trade history and analytics
 - [ ] Frontend interface for trade participants
 - [ ] Testnet deployment (Sepolia / Base Sepolia)
