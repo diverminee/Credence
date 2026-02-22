@@ -31,8 +31,15 @@ contract CredenceReceivable is ERC721, IReceivableMinter {
     mapping(uint256 => ReceivableData) public receivables;
 
     // ============ Events ============
-    event ReceivableMintedNFT(uint256 indexed tokenId, uint256 indexed escrowId, address indexed seller);
-    event ReceivableSettledNFT(uint256 indexed tokenId, uint256 indexed escrowId);
+    event ReceivableMintedNFT(
+        uint256 indexed tokenId,
+        uint256 indexed escrowId,
+        address indexed seller
+    );
+    event ReceivableSettledNFT(
+        uint256 indexed tokenId,
+        uint256 indexed escrowId
+    );
 
     // ============ Constructor ============
     constructor(address _escrowContract) ERC721("Credence Receivable", "CRCV") {
@@ -86,10 +93,18 @@ contract CredenceReceivable is ERC721, IReceivableMinter {
 
     /// @notice Override ERC721 _update to block transfers of settled receivables
     /// @dev Allows minting (from == 0) and burning (to == 0), blocks transfer when settled
-    function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
+    function _update(
+        address to,
+        uint256 tokenId,
+        address auth
+    ) internal override returns (address) {
         address from = _ownerOf(tokenId);
         // Block transfers (not mints/burns) of settled tokens
-        if (receivables[tokenId].isSettled && from != address(0) && to != address(0)) {
+        if (
+            receivables[tokenId].isSettled &&
+            from != address(0) &&
+            to != address(0)
+        ) {
             revert SettledReceivableNotTransferable();
         }
         return super._update(to, tokenId, auth);
@@ -100,7 +115,9 @@ contract CredenceReceivable is ERC721, IReceivableMinter {
     /// @notice Get receivable data for a token
     /// @param tokenId The NFT token ID
     /// @return data The receivable data struct
-    function getReceivableData(uint256 tokenId) external view returns (ReceivableData memory data) {
+    function getReceivableData(
+        uint256 tokenId
+    ) external view returns (ReceivableData memory data) {
         if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
         return receivables[tokenId];
     }
@@ -108,7 +125,9 @@ contract CredenceReceivable is ERC721, IReceivableMinter {
     /// @notice Returns on-chain JSON metadata for the receivable NFT
     /// @param tokenId The NFT token ID
     /// @return string Base64-encoded JSON metadata URI
-    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+    function tokenURI(
+        uint256 tokenId
+    ) public view override returns (string memory) {
         if (_ownerOf(tokenId) == address(0)) revert TokenDoesNotExist();
         ReceivableData memory data = receivables[tokenId];
 
@@ -134,7 +153,13 @@ contract CredenceReceivable is ERC721, IReceivableMinter {
             )
         );
 
-        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(bytes(json))));
+        return
+            string(
+                abi.encodePacked(
+                    "data:application/json;base64,",
+                    Base64.encode(bytes(json))
+                )
+            );
     }
 
     // ============ Internal String Helpers ============

@@ -19,15 +19,35 @@ contract ProtocolArbiterMultisig {
 
     // ============ Events ============
     event ResolutionProposed(
-        uint256 indexed proposalId, uint256 indexed escrowId, uint8 ruling, address indexed proposer
+        uint256 indexed proposalId,
+        uint256 indexed escrowId,
+        uint8 ruling,
+        address indexed proposer
     );
-    event ResolutionApproved(uint256 indexed proposalId, address indexed approver);
-    event ResolutionRevoked(uint256 indexed proposalId, address indexed revoker);
-    event ResolutionExecuted(uint256 indexed proposalId, uint256 indexed escrowId, uint8 ruling);
+    event ResolutionApproved(
+        uint256 indexed proposalId,
+        address indexed approver
+    );
+    event ResolutionRevoked(
+        uint256 indexed proposalId,
+        address indexed revoker
+    );
+    event ResolutionExecuted(
+        uint256 indexed proposalId,
+        uint256 indexed escrowId,
+        uint8 ruling
+    );
     event SignerAdded(address indexed signer);
     event SignerRemoved(address indexed signer);
-    event GovernanceActionProposed(uint256 indexed proposalId, address indexed target, address indexed proposer);
-    event GovernanceActionExecuted(uint256 indexed proposalId, address indexed target);
+    event GovernanceActionProposed(
+        uint256 indexed proposalId,
+        address indexed target,
+        address indexed proposer
+    );
+    event GovernanceActionExecuted(
+        uint256 indexed proposalId,
+        address indexed target
+    );
 
     // ============ Constants ============
     uint256 public constant PROPOSAL_EXPIRY = 7 days;
@@ -58,10 +78,15 @@ contract ProtocolArbiterMultisig {
     /// @param _escrow Address of the TradeInfraEscrow contract
     /// @param _signers Initial signer addresses
     /// @param _threshold Minimum approvals required
-    constructor(address _escrow, address[] memory _signers, uint256 _threshold) {
+    constructor(
+        address _escrow,
+        address[] memory _signers,
+        uint256 _threshold
+    ) {
         if (_escrow == address(0)) revert InvalidAddress();
         if (_signers.length == 0) revert InvalidThreshold();
-        if (_threshold == 0 || _threshold > _signers.length) revert InvalidThreshold();
+        if (_threshold == 0 || _threshold > _signers.length)
+            revert InvalidThreshold();
 
         escrow = _escrow;
         threshold = _threshold;
@@ -86,7 +111,10 @@ contract ProtocolArbiterMultisig {
     /// @param escrowId The escrow ID to resolve
     /// @param ruling The ruling (1 = seller, 2 = buyer)
     /// @return proposalId The created proposal ID
-    function proposeResolution(uint256 escrowId, uint8 ruling) external onlySigner returns (uint256 proposalId) {
+    function proposeResolution(
+        uint256 escrowId,
+        uint8 ruling
+    ) external onlySigner returns (uint256 proposalId) {
         proposalId = nextProposalId++;
         Proposal storage p = proposals[proposalId];
         p.escrowId = escrowId;
@@ -112,7 +140,8 @@ contract ProtocolArbiterMultisig {
         Proposal storage p = proposals[proposalId];
         if (p.createdAt == 0) revert ProposalNotFound();
         if (p.executed) revert ProposalNotFound();
-        if (block.timestamp > p.createdAt + PROPOSAL_EXPIRY) revert ProposalExpired();
+        if (block.timestamp > p.createdAt + PROPOSAL_EXPIRY)
+            revert ProposalExpired();
         if (p.approvals[msg.sender]) revert AlreadyApproved();
 
         p.approvals[msg.sender] = true;
@@ -143,11 +172,10 @@ contract ProtocolArbiterMultisig {
     /// @param _target Address to call (typically address(this) for signer management)
     /// @param _callData ABI-encoded function call
     /// @return proposalId The created proposal ID
-    function proposeGovernanceAction(address _target, bytes calldata _callData)
-        external
-        onlySigner
-        returns (uint256 proposalId)
-    {
+    function proposeGovernanceAction(
+        address _target,
+        bytes calldata _callData
+    ) external onlySigner returns (uint256 proposalId) {
         if (_target == address(0)) revert InvalidAddress();
 
         proposalId = nextProposalId++;
@@ -212,7 +240,10 @@ contract ProtocolArbiterMultisig {
     /// @param proposalId The proposal ID
     /// @param signer The signer address
     /// @return bool True if approved
-    function hasApproved(uint256 proposalId, address signer) external view returns (bool) {
+    function hasApproved(
+        uint256 proposalId,
+        address signer
+    ) external view returns (bool) {
         return proposals[proposalId].approvals[signer];
     }
 
@@ -225,13 +256,18 @@ contract ProtocolArbiterMultisig {
 
         if (p.callData.length > 0) {
             // Governance action (e.g., addSigner, removeSigner)
-            (bool success,) = p.target.call(p.callData);
+            (bool success, ) = p.target.call(p.callData);
             require(success, "governance action failed");
             emit GovernanceActionExecuted(proposalId, p.target);
         } else {
             // Legacy resolution path
-            (bool success,) =
-                escrow.call(abi.encodeWithSignature("resolveEscalation(uint256,uint8)", p.escrowId, p.ruling));
+            (bool success, ) = escrow.call(
+                abi.encodeWithSignature(
+                    "resolveEscalation(uint256,uint8)",
+                    p.escrowId,
+                    p.ruling
+                )
+            );
             require(success, "resolveEscalation failed");
             emit ResolutionExecuted(proposalId, p.escrowId, p.ruling);
         }
