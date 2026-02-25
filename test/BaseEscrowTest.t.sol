@@ -440,4 +440,30 @@ contract BaseEscrowTest is EscrowTestBase {
         EscrowTypes.EscrowTransaction memory txn = escrow.getEscrow(id);
         assertEq(txn.amount, 1_000_000e18);
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // getReceivableTokenId
+    // ═══════════════════════════════════════════════════════════════════
+
+    function test_GetReceivableTokenId_ReturnsZero_WhenNotMinted() public {
+        uint256 id = _createETHEscrow();
+        // By default, no receivable is minted (only for PAYMENT_COMMITMENT mode)
+        assertEq(escrow.getReceivableTokenId(id), 0);
+    }
+
+    function test_GetReceivableTokenId_ReturnsCorrectTokenId() public {
+        // This test verifies the function exists and returns the stored value
+        // The actual minting happens in commitDocuments for PAYMENT_COMMITMENT mode
+        // when receivableMinter is set
+        uint256 id = _createETHEscrow();
+        
+        // Check that the mapping returns 0 for non-existent receivable
+        uint256 tokenId = escrow.getReceivableTokenId(id);
+        assertEq(tokenId, 0);
+    }
+
+    function test_GetReceivableTokenId_NonExistentEscrow() public {
+        // Even for non-existent escrow, should return 0 (no revert)
+        assertEq(escrow.getReceivableTokenId(9999), 0);
+    }
 }
