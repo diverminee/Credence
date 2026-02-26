@@ -14,4 +14,14 @@ contract MockOracle is ITradeOracle {
     function verifyTradeData(bytes32 /*tradeDataHash*/ ) external view returns (bool) {
         return shouldVerify;
     }
+
+    function verifyTradeDataWithDocuments(
+        bytes32 /*tradeDataHash*/,
+        bytes32 /*invoiceHash*/,
+        bytes32 /*bolHash*/,
+        bytes32 /*packingHash*/,
+        bytes32 /*cooHash*/
+    ) external view returns (bool) {
+        return shouldVerify;
+    }
 }
