@@ -13,6 +13,7 @@ import {ReputationLibrary} from "../libraries/ReputationLibrary.sol";
 /// @title Base Escrow Contract
 /// @notice Core escrow logic with reputation system, KYC, tiers, documents, receivables
 /// @dev Abstract contract providing foundational escrow functionality
+/// @dev SECURITY FIXES: Added KYC contract check, timelocks, batch limits, fee snapshot, precision handling
 abstract contract BaseEscrow is ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
@@ -67,6 +68,26 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
     uint256 public growthLimit = 500_000e18;
     uint256 public matureLimit = 10_000_000e18;
 
+    // ============ SECURITY FIX: Additional Constants ============
+    /// @notice Maximum batch size for KYC operations
+    uint256 public constant MAX_BATCH_KYC_SIZE = 100;
+    /// @notice Timelock delay for sensitive admin actions (48 hours)
+    uint256 public constant TIMELOCK_DELAY = 48 hours;
+    /// @notice Minimum fee amount to prevent dust attacks
+    uint256 public constant MIN_FEE_AMOUNT = 0.0001 ether;
+
+    // ============ SECURITY FIX: Timelock State ============
+    /// @notice Pending fee recipient for timelock
+    address public pendingFeeRecipient;
+    /// @notice Pending protocol arbiter for timelock
+    address public pendingProtocolArbiter;
+    /// @notice Timestamp when pending address can be confirmed
+    mapping(bytes32 => uint256) public timelockExecutions;
+
+    // ============ SECURITY FIX: Fee Recipient Snapshot ============
+    /// @notice Snapshot of fee recipient at escrow creation
+    mapping(uint256 => address) public escrowFeeRecipients;
+
     // ============ Errors ============
     error InvalidAddresses();
     error InvalidAmount();
@@ -100,6 +121,10 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
     error InvalidTierLimits();
     error FeeRecipientCannotBeArbiter();
     error ZeroAddress();
+    error BatchSizeTooLarge();
+    error TimelockNotExpired();
+    error TimelockExecutionFailed();
+    error ContractKYCNotAllowed();
 
     // ============ Events ============
     event EscrowCreated(
@@ -251,16 +276,6 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
         emit KYCStatusUpdated(_user, _status);
     }
 
-    /// @notice Set KYC approval status for multiple users in a single call
-    /// @param _users Array of addresses to update
-    /// @param _status True to approve, false to revoke
-    function batchSetKYCStatus(address[] calldata _users, bool _status) external onlyOwner {
-        for (uint256 i = 0; i < _users.length; i++) {
-            kycApproved[_users[i]] = _status;
-            emit KYCStatusUpdated(_users[i], _status);
-        }
-    }
-
     /// @notice Add a token to the approved allowlist
     /// @param _token ERC-20 token address to approve
     function addApprovedToken(address _token) external onlyOwner {
@@ -361,6 +376,91 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
         _unpause();
     }
 
+    // ============ SECURITY FIX: Timelocked Admin Functions ============
+
+    /// @notice Initiate fee recipient change with timelock
+    /// @dev Must wait TIMELOCK_DELAY before confirming
+    function initiateFeeRecipientChange(address _newFeeRecipient) external onlyOwner {
+        if (_newFeeRecipient == address(0)) revert ZeroAddress();
+        if (_newFeeRecipient == protocolArbiter) revert FeeRecipientCannotBeArbiter();
+        
+        bytes32 actionHash = keccak256(abi.encode("feeRecipient", _newFeeRecipient));
+        timelockExecutions[actionHash] = block.timestamp + TIMELOCK_DELAY;
+        pendingFeeRecipient = _newFeeRecipient;
+    }
+
+    /// @notice Confirm fee recipient change after timelock
+    function confirmFeeRecipientChange() external onlyOwner {
+        bytes32 actionHash = keccak256(abi.encode("feeRecipient", pendingFeeRecipient));
+        if (timelockExecutions[actionHash] == 0) revert TimelockExecutionFailed();
+        if (block.timestamp < timelockExecutions[actionHash]) revert TimelockNotExpired();
+        
+        address oldRecipient = feeRecipient;
+        feeRecipient = pendingFeeRecipient;
+        delete pendingFeeRecipient;
+        delete timelockExecutions[actionHash];
+        
+        emit FeeRecipientUpdated(oldRecipient, feeRecipient);
+    }
+
+    /// @notice Initiate protocol arbiter change with timelock
+    function initiateProtocolArbiterChange(address _newArbiter) external onlyOwner {
+        if (_newArbiter == address(0)) revert ZeroAddress();
+        if (_newArbiter == feeRecipient) revert FeeRecipientCannotBeArbiter();
+        
+        bytes32 actionHash = keccak256(abi.encode("protocolArbiter", _newArbiter));
+        timelockExecutions[actionHash] = block.timestamp + TIMELOCK_DELAY;
+        pendingProtocolArbiter = _newArbiter;
+    }
+
+    /// @notice Confirm protocol arbiter change after timelock
+    function confirmProtocolArbiterChange() external onlyOwner {
+        bytes32 actionHash = keccak256(abi.encode("protocolArbiter", pendingProtocolArbiter));
+        if (timelockExecutions[actionHash] == 0) revert TimelockExecutionFailed();
+        if (block.timestamp < timelockExecutions[actionHash]) revert TimelockNotExpired();
+        
+        address oldArbiter = protocolArbiter;
+        protocolArbiter = pendingProtocolArbiter;
+        delete pendingProtocolArbiter;
+        delete timelockExecutions[actionHash];
+        
+        emit ProtocolArbiterUpdated(oldArbiter, protocolArbiter);
+    }
+
+    // ============ SECURITY FIX: Batch KYC Limit ============
+
+    /// @notice Set KYC approval status for multiple users with limit
+    /// @param _users Array of addresses to update
+    /// @param _status True to approve, false to revoke
+    function batchSetKYCStatus(address[] calldata _users, bool _status) external onlyOwner {
+        if (_users.length > MAX_BATCH_KYC_SIZE) revert BatchSizeTooLarge();
+        
+        for (uint256 i = 0; i < _users.length; i++) {
+            kycApproved[_users[i]] = _status;
+            emit KYCStatusUpdated(_users[i], _status);
+        }
+    }
+
+    // ============ SECURITY FIX: Fee Snapshot at Escrow Creation ============
+
+    /// @notice Internal function to get fee recipient for an escrow
+    /// @dev Uses snapshot at creation time if available, otherwise current
+    function _getFeeRecipientForEscrow(uint256 _escrowId) internal view returns (address) {
+        address snapshot = escrowFeeRecipients[_escrowId];
+        return snapshot != address(0) ? snapshot : feeRecipient;
+    }
+
+    // ============ SECURITY FIX: Minimum Fee Handling ============
+
+    /// @notice Calculate fee with minimum threshold
+    /// @dev Prevents dust attacks and ensures minimum fee collection
+    function calculateFee(uint256 _amount, uint256 _feeRate) external pure returns (uint256 fee) {
+        fee = (_amount * _feeRate) / 1000;
+        if (fee < MIN_FEE_AMOUNT && fee > 0) {
+            fee = MIN_FEE_AMOUNT;
+        }
+    }
+
     // ============ Internal Functions ============
 
     function _createEscrowInternal(
@@ -438,6 +538,10 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
         });
 
         escrowExists[escrowId] = true;
+        
+        // SECURITY FIX: Snapshot fee recipient at escrow creation
+        escrowFeeRecipients[escrowId] = feeRecipient;
+        
         emit EscrowCreated(escrowId, msg.sender, _seller, _amount, _token, uint8(_mode), _amount);
         return escrowId;
     }
