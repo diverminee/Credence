@@ -60,28 +60,32 @@ export function EmptyState({ icon = "info", title, description, action }: EmptyS
     <div className="empty-state">
       <div 
         className="empty-state-icon"
-        style={{ color: "var(--text-muted)" }}
+        style={{ color: "var(--text-muted)", textAlign: "center", display: "flex", justifyContent: "center" }}
       >
         {icons[icon]}
       </div>
-      <h3 className="empty-state-title">{title}</h3>
-      <p className="empty-state-description">{description}</p>
+      <h3 className="empty-state-title" style={{ textAlign: "center" }}>{title}</h3>
+      <p className="empty-state-description" style={{ textAlign: "center" }}>{description}</p>
       {action && (
         action.href ? (
-          <Link
-            href={action.href}
-            className="btn-primary"
-            onClick={action.onClick}
-          >
-            {action.label}
-          </Link>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <Link
+              href={action.href}
+              className="btn-primary"
+              onClick={action.onClick}
+            >
+              {action.label}
+            </Link>
+          </div>
         ) : (
-          <button
-            className="btn-primary"
-            onClick={action.onClick}
-          >
-            {action.label}
-          </button>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <button
+              className="btn-primary"
+              onClick={action.onClick}
+            >
+              {action.label}
+            </button>
+          </div>
         )
       )}
     </div>

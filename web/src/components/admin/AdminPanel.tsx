@@ -17,7 +17,7 @@ export function AdminPanel() {
   const admin = useAdmin();
 
   // All state hooks must be at the top, before any early returns
-  const [activeTab, setActiveTab] = useState<"kyc" | "tokens" | "tier" | "settings" | "emergency">("kyc");
+  const [activeTab, setActiveTab] = useState<"KYC" | "tokens" | "tier" | "settings" | "emergency">("KYC");
 
   // KYC State
   const [kycAddress, setKycAddress] = useState("");
@@ -107,7 +107,7 @@ export function AdminPanel() {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-[#154A99]">
-        {(["kyc", "tokens", "tier", "settings", "emergency"] as const).map((tab) => (
+        {(["KYC", "tokens", "tier", "settings", "emergency"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -131,7 +131,7 @@ export function AdminPanel() {
         )}
 
         {/* KYC Tab */}
-        {activeTab === "kyc" && (
+        {activeTab === "KYC" && (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-white">KYC Management</h3>
             

@@ -11,7 +11,7 @@ const queryClient = new QueryClient();
 const credenceTheme = darkTheme({
   accentColor: "#A65E46",
   accentColorForeground: "white",
-  borderRadius: "none",
+  borderRadius: "large",
   fontStack: "system",
   overlayBlur: "small",
 });
