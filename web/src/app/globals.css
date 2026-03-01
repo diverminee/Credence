@@ -9,14 +9,17 @@
    Supports Dark & Light Modes
    ============================================ */
 
-/* ───────────────────────────────────────────
-   THEME: DARK (Default)
-   ─────────────────────────────────────────── */
+/* 
+   CSS Variables are defined on :root and overridden by .light class
+   This ensures variables cascade properly to all child elements
+*/
+
+/* Default: Dark Theme (Fallback for SSR) */
 :root,
 .dark {
-  /* Backgrounds */
-  --bg-base:        #02000D;
-  --bg-surface:     #07203F;
+  /* Backgrounds - Elegant deep navy */
+  --bg-base:        #0B1628;
+  --bg-surface:     #0F2744;
   --bg-elevated:    #0A2A52;
   --bg-subtle:      #0C3466;
 
@@ -65,7 +68,7 @@
    THEME: LIGHT
    Warm Terracotta Inspired - #D9AA90 / #EBDED4
    ─────────────────────────────────────────── */
-.light {
+:root.light {
   /* Backgrounds - Warm terracotta inspired */
   --bg-base:        #EBDED4;
   --bg-surface:     #F5EDE6;
@@ -111,6 +114,40 @@
   --card-bg: var(--bg-surface);
   --card-border: var(--border-default);
   --card-hover: #FFFFFF;
+}
+
+/* Fallback for SSR - defaults to dark (kept for compatibility) */
+:root {
+  --bg-base:        #0B1628;
+  --bg-surface:     #0F2744;
+  --bg-elevated:    #0A2A52;
+  --bg-subtle:      #0C3466;
+  --border-dim:     #103A7A;
+  --border-default: #154A99;
+  --border-bright:  #1A5AB8;
+  --accent:         #A65E46;
+  --accent-dim:     #8A4B36;
+  --accent-glow:    rgba(166, 94, 70, 0.2);
+  --highlight:      #D9AA90;
+  --highlight-soft: #C49A82;
+  --text-primary:   #EBDED4;
+  --text-secondary: #D9AA90;
+  --text-muted:     #A68A7A;
+  --text-accent:    #A65E46;
+  --green:  #22C55E;
+  --red:    #EF4444;
+  --yellow: #EAB308;
+  --blue:   #1A5AB8;
+  --brown:  #A65E46;
+  --beige:  #D9AA90;
+  --taupe:  #A68A7A;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+  --card-bg: var(--bg-surface);
+  --card-border: var(--border-default);
+  --card-hover: var(--bg-elevated);
 }
 
 /* ───────────────────────────────────────────
@@ -660,6 +697,53 @@ body {
   font-size: 0.9rem;
   max-width: 400px;
   margin: 0 auto 1.5rem;
+}
+
+/* ───────────────────────────────────────────
+   RAINBOWKIT CONNECT BUTTON - Match Theme Toggle
+   Same border (9x9) as theme toggle button
+   ─────────────────────────────────────────── */
+.rainbow-button {
+  border-radius: 8px !important;
+}
+
+.rainbow-button button,
+.rainbowkit-button,
+[data-testid="rk-connect-button"] {
+  border-radius: 8px !important;
+}
+
+.rainbowkit-button button {
+  border-radius: 8px !important;
+  border: 1px solid var(--border-default) !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 12px !important;
+  transition: all 0.2s ease !important;
+}
+
+.rainbowkit-button button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(166, 94, 70, 0.25) !important;
+  border-color: var(--border-bright) !important;
+}
+
+/* Chain selector dropdown */
+.rainbowkit-button > div > div button {
+  border-radius: 8px !important;
+  border: 1px solid var(--border-default) !important;
+  height: 36px !important;
+  min-height: 36px !important;
+}
+
+/* Account modal custom styling */
+.rainbowkit-modal-bg {
+  backdrop-filter: blur(4px);
+}
+
+.rainbowkit-modal {
+  border-radius: 8px !important;
+  border: 1px solid var(--border-default) !important;
 }
 
 /* ───────────────────────────────────────────

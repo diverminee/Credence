@@ -34,14 +34,24 @@ export default function RootLayout({
               (function() {
                 try {
                   var theme = localStorage.getItem('theme');
-                  if (theme === 'light' || (!theme && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+                  if (theme === 'light') {
+                    document.documentElement.classList.add('light');
+                    document.documentElement.classList.remove('dark');
+                  } else if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                  } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
                     document.documentElement.classList.add('light');
                     document.documentElement.classList.remove('dark');
                   } else {
+                    // Default to dark
                     document.documentElement.classList.add('dark');
                     document.documentElement.classList.remove('light');
                   }
-                } catch (e) {}
+                } catch (e) {
+                  // Default to dark
+                  document.documentElement.classList.add('dark');
+                }
               })();
             `,
           }}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useTheme } from "next-themes";
+import { useTheme as useNextTheme } from "next-themes";
+import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
 import { useEffect, useState, type ReactNode } from "react";
 
 interface ThemeProviderProps {
@@ -19,7 +20,6 @@ export function ThemeProvider({
   disableTransitionOnChange = true
 }: ThemeProviderProps) {
   const [mounted, setMounted] = useState(false);
-  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     setMounted(true);
@@ -31,11 +31,16 @@ export function ThemeProvider({
   }
 
   return (
-    <div 
-      style={{ minHeight: "100vh" }}
+    <NextThemesProvider
+      attribute={attribute}
+      defaultTheme={defaultTheme}
+      enableSystem={enableSystem}
+      disableTransitionOnChange={disableTransitionOnChange}
     >
-      {children}
-    </div>
+      <div style={{ minHeight: "100vh" }}>
+        {children}
+      </div>
+    </NextThemesProvider>
   );
 }
 
