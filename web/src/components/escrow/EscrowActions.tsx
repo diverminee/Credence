@@ -17,27 +17,25 @@ interface EscrowActionsProps {
 }
 
 export function EscrowActions({ escrowId, escrow }: EscrowActionsProps) {
+  // ALL hooks must be called unconditionally - no early returns before this point!
   const [mounted, setMounted] = useState(false);
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return null;
-  }
+  // Custom hooks
   const { refetch } = useEscrowRead(escrowId, chainId);
   const fundEscrow = useFundEscrow(chainId);
 
+  // Wagmi hooks
   const { writeContract, isPending: isWritePending, error: writeError } = useWriteContract();
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({
     hash: fundEscrow.hash
   });
 
+  // Contract
   const contract = getEscrowContract(chainId);
 
+  // Form state
   const [fundAmount, setFundAmount] = useState("");
   const [invoiceHash, setInvoiceHash] = useState("");
   const [bolHash, setBolHash] = useState("");
@@ -47,6 +45,16 @@ export function EscrowActions({ escrowId, escrow }: EscrowActionsProps) {
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+
+  // Effect to prevent hydration mismatch - AFTER all hooks
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Now we can do conditional returns - hooks are all called above
+  if (!mounted) {
+    return null;
+  }
 
   const isBuyer = address && address.toLowerCase() === escrow.buyer.toLowerCase();
   const isSeller = address && address.toLowerCase() === escrow.seller.toLowerCase();
@@ -313,7 +321,26 @@ export function EscrowActions({ escrowId, escrow }: EscrowActionsProps) {
                   placeholder="0.00"
                   className="w-full rounded-lg border border-[#154A99] bg-[#0A2A52] px-3 py-2 text-white"
                 />
-                <p className="mt-1 text-sm text-[#A68A7A]">
+                {/* Percentage Quick Input Buttons */}
+                <div className="mt-2 flex gap-2">
+                  {[25, 50, 75, 100].map((pct) => {
+                    const maxAmount = isCashLock ? escrow.amount : escrow.collateralAmount;
+                    const decimals = escrow.token === "0x0000000000000000000000000000000000000000" ? 18 : 6;
+                    const displayMax = Number(maxAmount) / (10 ** decimals);
+                    const amount = (displayMax * pct / 100).toFixed(decimals === 18 ? 6 : 2);
+                    
+                    return (
+                      <button
+                        key={pct}
+                        onClick={() => setFundAmount(amount)}
+                        className="flex-1 rounded border border-[#154A99] px-2 py-1 text-xs text-[#D9AA90] transition hover:bg-[#154A99]/30"
+                      >
+                        {pct}%
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-sm text-[#A68A7A]">
                   {isCashLock
                     ? `Full amount: ${Number(escrow.amount) / (escrow.token === "0x0000000000000000000000000000000000000000" ? 1e18 : 1e6)} ${escrow.token === "0x0000000000000000000000000000000000000000" ? "ETH" : "USDC/USDT"}`
                     : `Collateral: ${Number(escrow.collateralAmount) / (escrow.token === "0x0000000000000000000000000000000000000000" ? 1e18 : 1e6)}`
@@ -332,7 +359,11 @@ export function EscrowActions({ escrowId, escrow }: EscrowActionsProps) {
                   disabled={!fundAmount || isPending || isAllConfirming}
                   className="flex-1 rounded-lg bg-[#A65E46] px-4 py-2 text-white disabled:opacity-50"
                 >
-                  {isPending ? "Signing..." : isAllConfirming ? "Confirming..." : "Fund"}
+                  {/* Contextual Button Text */}
+                  {!isConnected ? "Connect Wallet" : 
+                   isPending ? "Signing..." : 
+                   isAllConfirming ? "Confirming..." : 
+                   "Fund Escrow"}
                 </button>
               </div>
             </div>

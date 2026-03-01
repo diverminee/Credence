@@ -49,7 +49,7 @@ function CreateEscrowModal({
   const [token, setToken] = useState(TOKENS[0].address);
   const [amount, setAmount] = useState("");
   const [tradeId, setTradeId] = useState("");
-  const [tradeDataHash, setTradeDataHash] = useState("0x0000000000000000000000000000000000000000000000000000000000000000");
+  const [tradeDataHash, setTradeDataHash] = useState("0x0");
   const [collateralBps, setCollateralBps] = useState(DEFAULT_COLLATERAL_BPS.toString());
   const [maturityDays, setMaturityDays] = useState(DEFAULT_MATURITY_DAYS.toString());
   const [step, setStep] = useState<"form" | "review" | "success">("form");
@@ -114,7 +114,7 @@ function CreateEscrowModal({
     }
     
     // Validate trade data hash format
-    if (tradeDataHash && tradeDataHash !== "0x0000000000000000000000000000000000000000000000000000000000000000") {
+    if (tradeDataHash && tradeDataHash !== "0x0" && tradeDataHash !== "0x0000000000000000000000000000000000000000000000000000000000000000") {
       if (!hashRegex.test(tradeDataHash)) {
         newErrors.tradeDataHash = "Invalid hash format. Must be 0x followed by 64 hexadecimal characters.";
       }
@@ -198,16 +198,26 @@ function CreateEscrowModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-auto">
-      <div className="w-full max-w-lg rounded-lg border border-[#154A99] bg-[#07203F] p-6 shadow-2xl">
+      <div 
+        className="w-full max-w-lg rounded-lg border p-6 shadow-2xl"
+        style={{ 
+          borderColor: "var(--border-default)", 
+          backgroundColor: "var(--bg-surface)" 
+        }}
+      >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">
+              <h2 
+                className="text-xl font-semibold"
+                style={{ color: "var(--text-primary)" }}
+              >
                 {step === "form" && "Create Escrow"}
                 {step === "review" && "Review Escrow"}
                 {step === "success" && "Escrow Created!"}
               </h2>
               <button
                 onClick={handleClose}
-                className="text-[#A68A7A] hover:text-white"
+                className="transition hover:opacity-70"
+                style={{ color: "var(--text-muted)" }}
               >
                 ✕
               </button>
@@ -217,38 +227,66 @@ function CreateEscrowModal({
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Mode Selection */}
                 <div>
-                  <label className="mb-2 block text-sm text-[#D9AA90]">Escrow Mode</label>
+                  <label 
+                    className="mb-2 block text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Escrow Mode
+                  </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setMode(EscrowMode.CASH_LOCK)}
                       className={`rounded-lg border p-3 text-left text-sm transition ${
                         mode === EscrowMode.CASH_LOCK
-                          ? "border-[#1A5AB8] bg-[#0A2A52] text-white"
-                          : "border-[#154A99] text-[#D9AA90] hover:border-[#1A5AB8]"
+                          ? "border-[var(--border-bright)]"
+                          : "border-[var(--border-default)] hover:border-[var(--border-bright)]"
                       }`}
+                      style={{
+                        backgroundColor: mode === EscrowMode.CASH_LOCK ? "var(--bg-elevated)" : "transparent",
+                        color: "var(--text-primary)"
+                      }}
                     >
                       <div className="font-medium">Cash Lock</div>
-                      <div className="mt-1 text-xs text-[#A68A7A]">Full amount locked</div>
+                      <div 
+                        className="mt-1 text-xs" 
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        Full amount locked
+                      </div>
                     </button>
                     <button
                       type="button"
                       onClick={() => setMode(EscrowMode.PAYMENT_COMMITMENT)}
                       className={`rounded-lg border p-3 text-left text-sm transition ${
                         mode === EscrowMode.PAYMENT_COMMITMENT
-                          ? "border-[#1A5AB8] bg-[#0A2A52] text-white"
-                          : "border-[#154A99] text-[#D9AA90] hover:border-[#1A5AB8]"
+                          ? "border-[var(--border-bright)]"
+                          : "border-[var(--border-default)] hover:border-[var(--border-bright)]"
                       }`}
+                      style={{
+                        backgroundColor: mode === EscrowMode.PAYMENT_COMMITMENT ? "var(--bg-elevated)" : "transparent",
+                        color: "var(--text-primary)"
+                      }}
                     >
                       <div className="font-medium">Payment Commitment</div>
-                      <div className="mt-1 text-xs text-[#A68A7A]">Partial collateral</div>
+                      <div 
+                        className="mt-1 text-xs" 
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        Partial collateral
+                      </div>
                     </button>
                   </div>
                 </div>
 
                 {/* Seller */}
                 <div>
-                  <label className="mb-1 block text-sm text-[#D9AA90]">Seller Address *</label>
+                  <label 
+                    className="mb-1 block text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Seller Address *
+                  </label>
                   <input
                     type="text"
                     value={seller}
@@ -260,7 +298,12 @@ function CreateEscrowModal({
                       }
                     }}
                     placeholder="0x..."
-                    className="w-full rounded-lg border border-[#154A99] bg-[#07203F] px-3 py-2 text-white placeholder-[#A68A7A] focus:border-[#A65E46] focus:outline-none"
+                    className="w-full rounded-lg border px-3 py-2 focus:outline-none"
+                    style={{ 
+                      borderColor: "var(--border-default)",
+                      backgroundColor: "var(--bg-base)",
+                      color: "var(--text-primary)",
+                    }}
                     required
                   />
                   {errors.seller && (
@@ -270,7 +313,12 @@ function CreateEscrowModal({
 
                 {/* Arbiter */}
                 <div>
-                  <label className="mb-1 block text-sm text-[#D9AA90]">Arbiter Address *</label>
+                  <label 
+                    className="mb-1 block text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Arbiter Address *
+                  </label>
                   <input
                     type="text"
                     value={arbiter}
@@ -282,7 +330,12 @@ function CreateEscrowModal({
                       }
                     }}
                     placeholder="0x..."
-                    className="w-full rounded-lg border border-[#154A99] bg-[#07203F] px-3 py-2 text-white placeholder-[#A68A7A] focus:border-[#A65E46] focus:outline-none"
+                    className="w-full rounded-lg border px-3 py-2 focus:outline-none"
+                    style={{ 
+                      borderColor: "var(--border-default)",
+                      backgroundColor: "var(--bg-base)",
+                      color: "var(--text-primary)",
+                    }}
                     required
                   />
                   {errors.arbiter && (
@@ -292,11 +345,21 @@ function CreateEscrowModal({
 
                 {/* Token */}
                 <div>
-                  <label className="mb-1 block text-sm text-[#D9AA90]">Token *</label>
+                  <label 
+                    className="mb-1 block text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Token *
+                  </label>
                   <select
                     value={token}
                     onChange={(e) => setToken(e.target.value)}
-                    className="w-full rounded-lg border border-[#154A99] bg-[#07203F] px-3 py-2 text-white focus:border-[#A65E46] focus:outline-none"
+                    className="w-full rounded-lg border px-3 py-2 focus:outline-none"
+                    style={{ 
+                      borderColor: "var(--border-default)",
+                      backgroundColor: "var(--bg-base)",
+                      color: "var(--text-primary)",
+                    }}
                     required
                   >
                     {TOKENS.map((t) => (
@@ -309,7 +372,10 @@ function CreateEscrowModal({
 
                 {/* Amount */}
                 <div>
-                  <label className="mb-1 block text-sm text-[#D9AA90]">
+                  <label 
+                    className="mb-1 block text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     Amount ({selectedToken.symbol}) *
                   </label>
                   <input
@@ -319,34 +385,59 @@ function CreateEscrowModal({
                     placeholder="0.00"
                     step="any"
                     min="0"
-                    className="w-full rounded-lg border border-[#154A99] bg-[#07203F] px-3 py-2 text-white placeholder-[#A68A7A] focus:border-[#A65E46] focus:outline-none"
+                    className="w-full rounded-lg border px-3 py-2 focus:outline-none"
+                    style={{ 
+                      borderColor: "var(--border-default)",
+                      backgroundColor: "var(--bg-base)",
+                      color: "var(--text-primary)",
+                    }}
                     required
                   />
                 </div>
 
                 {/* Trade ID */}
                 <div>
-                  <label className="mb-1 block text-sm text-[#D9AA90]">Trade ID *</label>
+                  <label 
+                    className="mb-1 block text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Trade ID *
+                  </label>
                   <input
                     type="number"
                     value={tradeId}
                     onChange={(e) => setTradeId(e.target.value)}
                     placeholder="1"
                     min="1"
-                    className="w-full rounded-lg border border-[#154A99] bg-[#07203F] px-3 py-2 text-white placeholder-[#A68A7A] focus:border-[#A65E46] focus:outline-none"
+                    className="w-full rounded-lg border px-3 py-2 focus:outline-none"
+                    style={{ 
+                      borderColor: "var(--border-default)",
+                      backgroundColor: "var(--bg-base)",
+                      color: "var(--text-primary)",
+                    }}
                     required
                   />
                 </div>
 
                 {/* Trade Data Hash */}
                 <div>
-                  <label className="mb-1 block text-sm text-[#D9AA90]">Trade Data Hash</label>
+                  <label 
+                    className="mb-1 block text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Trade Data Hash
+                  </label>
                   <input
                     type="text"
                     value={tradeDataHash}
                     onChange={(e) => setTradeDataHash(e.target.value)}
-                    placeholder="0x0000000000000000000000000000000000000000000000000000000000000000"
-                    className="w-full rounded-lg border border-[#154A99] bg-[#07203F] px-3 py-2 text-white placeholder-[#A68A7A] focus:border-[#A65E46] focus:outline-none font-mono text-xs"
+                    placeholder="0x0"
+                    className="w-full rounded-lg border px-3 py-2 font-mono text-xs focus:outline-none"
+                    style={{ 
+                      borderColor: "var(--border-default)",
+                      backgroundColor: "var(--bg-base)",
+                      color: "var(--text-primary)",
+                    }}
                   />
                   {errors.tradeDataHash && (
                     <p className="mt-1 text-xs text-red-400">{errors.tradeDataHash}</p>
@@ -358,7 +449,10 @@ function CreateEscrowModal({
                   <>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="mb-1 block text-sm text-[#D9AA90]">
+                        <label 
+                          className="mb-1 block text-sm"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
                           Collateral (BPS) *
                         </label>
                         <input
@@ -367,15 +461,26 @@ function CreateEscrowModal({
                           onChange={(e) => setCollateralBps(e.target.value)}
                           min={MIN_COLLATERAL_BPS.toString()}
                           max={MAX_COLLATERAL_BPS.toString()}
-                          className="w-full rounded-lg border border-[#154A99] bg-[#07203F] px-3 py-2 text-white focus:border-[#A65E46] focus:outline-none"
+                          className="w-full rounded-lg border px-3 py-2 focus:outline-none"
+                          style={{ 
+                            borderColor: "var(--border-default)",
+                            backgroundColor: "var(--bg-base)",
+                            color: "var(--text-primary)",
+                          }}
                           required
                         />
-                        <p className="mt-1 text-xs text-[#A68A7A]">
+                        <p 
+                          className="mt-1 text-xs"
+                          style={{ color: "var(--text-muted)" }}
+                        >
                           {Number(collateralBps) / 100}% of amount
                         </p>
                       </div>
                       <div>
-                        <label className="mb-1 block text-sm text-[#D9AA90]">
+                        <label 
+                          className="mb-1 block text-sm"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
                           Maturity (days) *
                         </label>
                         <input
@@ -383,7 +488,12 @@ function CreateEscrowModal({
                           value={maturityDays}
                           onChange={(e) => setMaturityDays(e.target.value)}
                           min="1"
-                          className="w-full rounded-lg border border-[#154A99] bg-[#07203F] px-3 py-2 text-white focus:border-[#A65E46] focus:outline-none"
+                          className="w-full rounded-lg border px-3 py-2 focus:outline-none"
+                          style={{ 
+                            borderColor: "var(--border-default)",
+                            backgroundColor: "var(--bg-base)",
+                            color: "var(--text-primary)",
+                          }}
                           required
                         />
                       </div>
@@ -392,16 +502,22 @@ function CreateEscrowModal({
                 )}
 
                 {/* User Info */}
-                <div className="rounded-lg border border-[#154A99] bg-[#07203F]/50 p-3">
+                <div 
+                  className="rounded-lg border p-3"
+                  style={{ 
+                    borderColor: "var(--border-default)",
+                    backgroundColor: "var(--bg-subtle)"
+                  }}
+                >
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#D9AA90]">Your Fee Rate:</span>
-                    <span className="text-white">
+                    <span style={{ color: "var(--text-secondary)" }}>Your Fee Rate:</span>
+                    <span style={{ color: "var(--text-primary)" }}>
                       {feeRate !== undefined ? formatFeeRate(feeRate) : "Loading..."}
                     </span>
                   </div>
                   <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-[#D9AA90]">Your Tier:</span>
-                    {tier !== undefined ? <TierBadge tier={tier} /> : <span className="text-[#A68A7A]">-</span>}
+                    <span style={{ color: "var(--text-secondary)" }}>Your Tier:</span>
+                    {tier !== undefined ? <TierBadge tier={tier} /> : <span style={{ color: "var(--text-muted)" }}>-</span>}
                   </div>
                 </div>
 
@@ -409,13 +525,20 @@ function CreateEscrowModal({
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="flex-1 rounded-lg border border-[#154A99] px-4 py-2 text-[#D9AA90] transition hover:border-[#A65E46] hover:text-white"
+                    className="flex-1 rounded-lg border px-4 py-2 transition"
+                    style={{ 
+                      borderColor: "var(--border-default)",
+                      color: "var(--text-secondary)",
+                    }}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 rounded-lg bg-[#A65E46] px-4 py-2 text-white transition hover:bg-[#C47154]"
+                    className="flex-1 rounded-lg px-4 py-2 text-white transition hover:opacity-90"
+                    style={{ 
+                      backgroundColor: "var(--accent)",
+                    }}
                   >
                     Continue
                   </button>
@@ -425,52 +548,63 @@ function CreateEscrowModal({
 
             {step === "review" && (
               <div className="space-y-4">
-                <div className="rounded-lg border border-[#154A99] p-4">
-                  <h3 className="mb-3 text-sm font-medium text-[#D9AA90]">Escrow Details</h3>
+                <div 
+                  className="rounded-lg border p-4"
+                  style={{ borderColor: "var(--border-default)" }}
+                >
+                  <h3 
+                    className="mb-3 text-sm font-medium"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Escrow Details
+                  </h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-[#D9AA90]">Mode:</span>
-                      <span className="text-white">
+                      <span style={{ color: "var(--text-secondary)" }}>Mode:</span>
+                      <span style={{ color: "var(--text-primary)" }}>
                         {mode === EscrowMode.CASH_LOCK ? "Cash Lock" : "Payment Commitment"}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#D9AA90]">Seller:</span>
+                      <span style={{ color: "var(--text-secondary)" }}>Seller:</span>
                       <AddressDisplay address={seller} />
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#D9AA90]">Arbiter:</span>
+                      <span style={{ color: "var(--text-secondary)" }}>Arbiter:</span>
                       <AddressDisplay address={arbiter} />
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#D9AA90]">Token:</span>
-                      <span className="text-white">{selectedToken.name}</span>
+                      <span style={{ color: "var(--text-secondary)" }}>Token:</span>
+                      <span style={{ color: "var(--text-primary)" }}>{selectedToken.name}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#D9AA90]">Amount:</span>
-                      <span className="text-white">
+                      <span style={{ color: "var(--text-secondary)" }}>Amount:</span>
+                      <span style={{ color: "var(--text-primary)" }}>
                         {amount} {selectedToken.symbol}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#D9AA90]">Trade ID:</span>
-                      <span className="text-white">#{tradeId}</span>
+                      <span style={{ color: "var(--text-secondary)" }}>Trade ID:</span>
+                      <span style={{ color: "var(--text-primary)" }}>#{tradeId}</span>
                     </div>
                     {mode === EscrowMode.PAYMENT_COMMITMENT && (
                       <>
                         <div className="flex justify-between">
-                          <span className="text-[#D9AA90]">Collateral:</span>
-                          <span className="text-white">{Number(collateralBps) / 100}%</span>
+                          <span style={{ color: "var(--text-secondary)" }}>Collateral:</span>
+                          <span style={{ color: "var(--text-primary)" }}>{Number(collateralBps) / 100}%</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-[#D9AA90]">Maturity:</span>
-                          <span className="text-white">{maturityDays} days</span>
+                          <span style={{ color: "var(--text-secondary)" }}>Maturity:</span>
+                          <span style={{ color: "var(--text-primary)" }}>{maturityDays} days</span>
                         </div>
                       </>
                     )}
-                    <div className="flex justify-between border-t border-[#154A99] pt-2">
-                      <span className="text-[#D9AA90]">Fee Rate:</span>
-                      <span className="text-white">
+                    <div 
+                      className="flex justify-between border-t pt-2"
+                      style={{ borderColor: "var(--border-default)" }}
+                    >
+                      <span style={{ color: "var(--text-secondary)" }}>Fee Rate:</span>
+                      <span style={{ color: "var(--text-primary)" }}>
                         {feeRate !== undefined ? formatFeeRate(feeRate) : "Loading..."}
                       </span>
                     </div>
@@ -486,7 +620,11 @@ function CreateEscrowModal({
                 <div className="flex gap-3">
                   <button
                     onClick={() => setStep("form")}
-                    className="flex-1 rounded-lg border border-[#154A99] px-4 py-2 text-[#D9AA90] transition hover:border-[#A65E46] hover:text-white"
+                    className="flex-1 rounded-lg border px-4 py-2 transition"
+                    style={{ 
+                      borderColor: "var(--border-default)",
+                      color: "var(--text-secondary)",
+                    }}
                     disabled={isPending || isConfirming}
                   >
                     Back
@@ -494,7 +632,10 @@ function CreateEscrowModal({
                   <button
                     onClick={handleConfirm}
                     disabled={isPending || isConfirming}
-                    className="flex-1 rounded-lg bg-[#A65E46] px-4 py-2 text-white transition hover:bg-[#C47154] disabled:opacity-50"
+                    className="flex-1 rounded-lg px-4 py-2 text-white transition hover:opacity-90 disabled:opacity-50"
+                    style={{ 
+                      backgroundColor: "var(--accent)",
+                    }}
                   >
                     {isPending ? "Signing..." : isConfirming ? "Confirming..." : "Create Escrow"}
                   </button>
@@ -504,15 +645,19 @@ function CreateEscrowModal({
 
             {step === "success" && (
               <div className="space-y-4">
-                <div className="rounded-lg border border-green-800 bg-green-900/20 p-4 text-center">
-                  <div className="text-4xl">✓</div>
-                  <p className="mt-2 text-white">Escrow created successfully!</p>
+                <div 
+                  className="rounded-lg border border-green-800 bg-green-900/20 p-4 text-center"
+                  style={{ borderColor: "var(--green)" }}
+                >
+                  <div className="text-4xl" style={{ color: "var(--green)" }}>✓</div>
+                  <p className="mt-2" style={{ color: "var(--text-primary)" }}>Escrow created successfully!</p>
                   {hash && (
                     <a
                       href={`https://basescan.org/tx/${hash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 block text-sm text-[#1A5AB8] hover:underline"
+                      className="mt-2 block text-sm hover:underline"
+                      style={{ color: "var(--blue)" }}
                     >
                       View Transaction
                     </a>
@@ -520,7 +665,10 @@ function CreateEscrowModal({
                 </div>
                 <button
                   onClick={handleClose}
-                  className="w-full rounded-lg bg-[#A65E46] px-4 py-2 text-white transition hover:bg-[#C47154]"
+                  className="w-full rounded-lg px-4 py-2 text-white transition hover:opacity-90"
+                  style={{ 
+                    backgroundColor: "var(--accent)",
+                  }}
                 >
                   Done
                 </button>
@@ -541,7 +689,8 @@ export function CreateEscrowForm({ onSuccess }: CreateEscrowFormProps) {
     <>
       <button
         onClick={handleOpen}
-        className="rounded-lg bg-[#A65E46] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#C47154]"
+        className="rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+        style={{ backgroundColor: "var(--accent)" }}
       >
         Create Escrow
       </button>

@@ -17,13 +17,17 @@ interface EscrowListItemProps {
 }
 
 function EscrowListItem({ escrowId }: EscrowListItemProps) {
+  // ALL hooks must be called unconditionally - no early returns before this point!
   const [mounted, setMounted] = useState(false);
   const chainId = useChainId();
+  const { escrow, isLoading, isError } = useEscrowRead(escrowId, chainId);
 
+  // Effect to prevent hydration mismatch - AFTER all hooks
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Now we can do conditional returns - hooks are all called above
   if (!mounted) {
     return (
       <tr>
@@ -35,7 +39,6 @@ function EscrowListItem({ escrowId }: EscrowListItemProps) {
       </tr>
     );
   }
-  const { escrow, isLoading, isError } = useEscrowRead(escrowId, chainId);
 
   if (isLoading) {
     return (

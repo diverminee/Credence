@@ -221,6 +221,70 @@ export default function EscrowDetailPage() {
               </div>
             </section>
 
+            {/* Trade Info Card */}
+            <section className="card animate-in animate-in-delay-3" style={{ padding: "1.5rem" }}>
+              <div className="accent-line" />
+              <p 
+                style={{
+                  fontSize: "0.65rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase",
+                  color: "var(--highlight-soft)",
+                  marginBottom: "1.25rem"
+                }}
+              >
+                Trade Info
+              </p>
+              <div style={{ 
+                display: "grid", 
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", 
+                gap: "1.5rem" 
+              }}>
+                <div>
+                  <p style={{ 
+                    fontFamily: "'Source Sans 3', sans-serif", 
+                    fontSize: "0.65rem", 
+                    fontWeight: 600, 
+                    letterSpacing: "0.14em", 
+                    textTransform: "uppercase", 
+                    color: "var(--text-muted)", 
+                    marginBottom: "0.5rem" 
+                  }}>
+                    Trade ID
+                  </p>
+                  <span style={{ 
+                    fontFamily: "'IBM Plex Mono', monospace", 
+                    fontSize: "0.875rem", 
+                    color: "var(--text-secondary)" 
+                  }}>
+                    {String(escrow.tradeId)}
+                  </span>
+                </div>
+                <div>
+                  <p style={{ 
+                    fontFamily: "'Source Sans 3', sans-serif", 
+                    fontSize: "0.65rem", 
+                    fontWeight: 600, 
+                    letterSpacing: "0.14em", 
+                    textTransform: "uppercase", 
+                    color: "var(--text-muted)", 
+                    marginBottom: "0.5rem" 
+                  }}>
+                    Trade Data Hash
+                  </p>
+                  <span style={{ 
+                    fontFamily: "'IBM Plex Mono', monospace", 
+                    fontSize: "0.75rem", 
+                    color: escrow.tradeDataHash !== "0x0000000000000000000000000000000000000000000000000000000000000000" ? "var(--text-secondary)" : "var(--text-muted)",
+                    wordBreak: "break-all"
+                  }}>
+                    {escrow.tradeDataHash}
+                  </span>
+                </div>
+              </div>
+            </section>
+
             {/* Financials Card */}
             <section className="card animate-in animate-in-delay-3" style={{ padding: "1.5rem" }}>
               <div className="accent-line" />

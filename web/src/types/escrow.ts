@@ -30,12 +30,13 @@ export enum DeploymentTier {
 
 // Mirrors EscrowTypes.EscrowTransaction struct
 export interface EscrowTransaction {
+  escrowId: bigint;
   buyer: `0x${string}`;
   seller: `0x${string}`;
   arbiter: `0x${string}`;
   token: `0x${string}`;
   amount: bigint;
-  tradeId: bigint;
+  tradeId: string;
   tradeDataHash: `0x${string}`;
   state: EscrowState;
   disputeDeadline: bigint;
@@ -46,6 +47,7 @@ export interface EscrowTransaction {
   collateralBps: bigint;
   maturityDate: bigint;
   commitmentFulfilled: boolean;
+  createdAt: bigint;
 }
 
 // Mirrors EscrowTypes.DocumentSet struct
