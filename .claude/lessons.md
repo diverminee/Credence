@@ -25,4 +25,7 @@ Periodically review — archive rules that no longer apply.
 **Applies to**: All Solidity files in src/
 -->
 
-<!-- Rules will be added here as corrections happen -->
+### #1 — Always read .claude/ files before doing anything
+**Context**: Started a session by re-reading source files already in context instead of checking .claude/lessons.md and .claude/todo.md first. Wasted time and missed the established backlog.
+**Rule**: At the start of every session (or when resuming after a break), the FIRST action is: read `.claude/lessons.md` and `.claude/todo.md`. These files contain the current project state, accumulated rules, and task priorities. Only after reading them should you touch source files or start implementing.
+**Applies to**: Every session, no exceptions.

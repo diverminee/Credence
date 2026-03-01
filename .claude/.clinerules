@@ -1,0 +1,211 @@
+# Project Brain — Credence
+
+Cline reads this file automatically before every task.
+
+---
+
+## Quick Start (Every Session)
+
+1. Run `forge build` to verify clean state
+2. Read `.claude/todo.md` for current tasks — ask user what's active
+3. Read `.claude/lessons.md` for learned rules
+
+---
+
+## Project Overview
+
+**Credence** — Programmable escrow infrastructure for international trade on Ethereum.
+
+- **Backend**: Solidity 0.8.24 / Foundry (via_ir enabled)
+- **Frontend**: Next.js 16.1.6 / wagmi v2 / viem v2 / Tailwind CSS v4
+- **Architecture**: TradeInfraEscrow → DisputeEscrow → BaseEscrow
+
+---
+
+## Build Commands
+
+```bash
+# Solidity
+forge build                  # compile contracts
+forge test                   # run tests
+forge fmt                    # format code
+forge snapshot               # gas snapshot
+
+# Frontend
+cd web && pnpm dev          # dev server
+cd web && pnpm lint         # linting
+cd web && pnpm typecheck    # TypeScript validation
+
+# Makefile shortcuts
+make sync-abi    # copy ABIs to web/src/lib/contracts/abis/
+make sync-env   # generate web/.env.local from .env.deployed
+make build-web  # sync ABI + pnpm build
+make dev-web    # frontend dev server
+make test-v     # verbose tests
+make test-deploy # run deployment tests
+```
+
+---
+
+## Workflow Rules
+
+### Planning (for tasks 3+ steps)
+- Create todo list using task_progress parameter
+- Identify affected files before editing
+- Map state machine transitions if applicable
+
+### Before Writing Code
+- Read relevant source files before editing
+- Identify state machine changes
+- Plan tests needed
+
+### After Writing Code
+- ALWAYS run `forge build && forge test`
+- If frontend changed: `cd web && pnpm lint && cd web && pnpm typecheck`
+
+### Pre-Commit Checklist
+- Check `.claude/lessons.md` for rule violations
+- Verify minimal changes (no extra refactoring)
+- If Solidity: `forge build` + `forge test` + `forge fmt` pass
+- If frontend: `pnpm lint` + `pnpm typecheck` pass
+
+### End of Session
+- Run `forge build && forge test` — verify green
+- Run `git status` — review all changes
+- Update `.claude/todo.md`: mark completed [x], add session notes
+
+### Capturing Lessons
+- When corrected: add rule to `.claude/lessons.md`
+- Format: ### #N — [Title], Context, Rule, Applies to
+
+---
+
+## Smart Contract Rules
+
+### ✅ Always:
+- Use `nonReentrant` on external state-changing functions
+- Use `whenNotPaused` on fund-handling functions
+- Use SafeERC20 for token transfers
+- Use custom errors (not require strings)
+- Emit events for every state change
+- Snapshot fee rates at creation time
+- Support both ETH (address(0)) and ERC20
+
+### ❌ Never:
+- Introduce reentrancy vectors
+- Use `delegatecall`, `selfdestruct`, `tx.origin`
+- Skip tests for new functions
+
+---
+
+## Key Technical Details
+
+### Escrow States
+DRAFT → FUNDED → RELEASED/REFUNDED/DISPUTED → ESCALATED
+
+### Modes
+- **CASH_LOCK**: Full upfront payment
+- **PAYMENT_COMMITMENT**: Partial collateral (10%-50%)
+
+### Fee Tiers (based on reputation)
+| Tier   | Fee Rate |
+|--------|----------|
+| BRONZE | 1.2%     |
+| SILVER | 0.9%     |
+| GOLD   | 0.8%     |
+| DIAMOND| 0.7%     |
+
+### Collateral BPS
+- Range: 1000-5000 (10%-50%)
+- Default: 2000 (20%)
+
+### Dispute Resolution
+- 14 days for primary arbiter
+- 7 days for protocol arbiter escalation
+
+### Deployment Tiers
+TESTNET → LAUNCH → GROWTH → MATURE
+
+### Security Features
+- Timelock delays: 48 hours for admin changes
+- Batch limits: 100 max for KYC operations
+- Fee snapshots: captured at escrow creation
+- Minimum fee: 0.0001 ETH (prevents dust attacks)
+
+---
+
+## Frontend Sync (After Solidity Changes)
+
+1. `make sync-abi`
+2. Check `web/src/types/escrow.ts` mirrors EscrowTypes.sol
+3. Run `cd web && pnpm typecheck`
+
+---
+
+## File Structure
+
+```
+src/
+  core/           # BaseEscrow, DisputeEscrow, TradeInfraEscrow
+  interfaces/     # ITradeOracle, IReceivableMinter
+  libraries/      # EscrowTypes, ReputationLibrary
+  governance/     # ProtocolArbiterMultisig
+  CredenceReceivable.sol
+  CentralizedTradeOracle.sol
+  ChainlinkTradeOracle.sol
+
+test/             # Foundry tests (13 test suites, 300+ tests)
+script/           # Deployment scripts
+web/              # Next.js frontend
+  src/
+    app/          # pages (dashboard, escrow/[id], disputes, receivables, admin)
+    components/  # React components
+    hooks/        # wagmi hooks
+    lib/          # ABIs, config
+    types/        # TypeScript types
+```
+
+---
+
+## Learned Rules (from .claude/lessons.md)
+
+### #1 — Always read .claude/ files before doing anything
+
+At the start of every session (or when resuming after a break), the FIRST action is: read `.claude/lessons.md` and `.claude/todo.md`. These files contain the current project state, accumulated rules, and task priorities. Only after reading them should you touch source files or start implementing.
+
+**Applies to**: Every session, no exceptions.
+
+---
+
+## Active Backlog (from .claude/todo.md)
+
+### In Progress
+*Nothing currently in progress*
+
+### Completed (29 items)
+- Core escrow logic, Dispute resolution, Trade infrastructure
+- Payment commitment mode, Document commitment, Reputation system
+- KYC allowlisting, ERC-721 receivable minting
+- Deployment tiers, Oracle integration, Protocol arbiter multisig
+- Deployment scripts, Test suite, CI/CD
+- Emergency pause mechanism, Security hardening
+- Amendment flow, Tolerance/variance, Partial drawing/release
+- Receivable routing to NFT holder, ETH compatibility
+- Next.js frontend scaffolding, Frontend interface
+
+### Top Backlog Items
+- Frontend interface polish and feature completeness
+- Testnet deployment (Sepolia / Base Sepolia)
+- Third-party security audit
+- Mainnet deployment
+- Subgraph mapping handlers and deployment
+
+---
+
+## Recent Features (v2)
+
+- Amendment flow (propose/approve/execute amendments)
+- Tolerance/variance (toleranceBps field)
+- Partial drawing/release (releasedAmount, drawingCount)
+- Receivable routing to NFT holder
+- receive() for ETH compatibility
