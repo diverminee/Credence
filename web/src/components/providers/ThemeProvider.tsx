@@ -47,14 +47,25 @@ export function ThemeProvider({
 // Hook to use theme in components
 export function useThemeToggle() {
   const { theme, setTheme, resolvedTheme } = useTheme();
-  
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const toggleTheme = () => {
     setTheme(resolvedTheme === "dark" ? "light" : "dark");
   };
 
+  // Default to dark mode until mounted to prevent hydration mismatch
+  // This ensures server and initial client render match
+  const isDark = mounted 
+    ? resolvedTheme === "dark" || theme === "dark"
+    : true;
+
   return {
-    theme: resolvedTheme || theme,
+    theme: mounted ? (resolvedTheme || theme) : "dark",
     toggleTheme,
-    isDark: resolvedTheme === "dark" || theme === "dark"
+    isDark
   };
 }
