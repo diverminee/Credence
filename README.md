@@ -55,6 +55,12 @@ The protocol introduces two settlement modes — full cash-lock escrow and parti
     - [Design Safeguards](#design-safeguards)
     - [Audit Status](#audit-status)
     - [Known Limitations](#known-limitations)
+  - [Testing](#testing-1)
+    - [Smart Contracts (Foundry)](#smart-contracts-foundry)
+    - [Frontend (Vitest)](#frontend-vitest)
+    - [Frontend E2E (Playwright)](#frontend-e2e-playwright)
+  - [Frontend](#frontend)
+    - [Frontend Tech Stack](#frontend-tech-stack)
   - [Roadmap](#roadmap)
   - [Contributing](#contributing)
   - [License](#license)
@@ -690,7 +696,7 @@ anvil
 ## Testing
 
 ```shell
-# Run all 329 tests
+# Run all 333 tests
 forge test
 
 # Verbose output with traces
@@ -716,12 +722,13 @@ forge snapshot
 | `ProtocolArbiterMultisigTest.t.sol` | 18    | Multisig proposals, approvals, execution, revocation, governance       |
 | `ReceivableTest.t.sol`              | 16    | NFT minting, settlement, metadata, failure resilience                  |
 | `DocumentCommitmentTest.t.sol`      | 14    | Merkle tree (1-4 leaves), document anchoring, oracle gating            |
+| `IntegrationEscrowLifecycle.t.sol`  | 4     | Full end-to-end escrow lifecycle flows                                   |
 | `SettledNFTTransferTest`*           | 4     | Settled receivable transfer blocking, active transfer, mint after settle|
 | `OracleMerkleRootTest`*             | 2     | Oracle verifies merkle root, rejects tradeDataHash                     |
 
 *`SettledNFTTransferTest` and `OracleMerkleRootTest` are defined inside `SecurityFixesTest.t.sol`*
 
-**329 tests, 0 failures.**
+**333+ tests, 0 failures.**
 
 > Tests run with `jobs = 1` (set in `foundry.toml`). *Note: Foundry does not support the `jobs` config option and will emit a warning — the setting is preserved for documentation purposes. The deploy test suite uses `vm.setEnv` to test environment variable overrides; parallel execution would create race conditions on the shared OS process environment.*
 
@@ -833,7 +840,7 @@ forge test --match-path test/PaymentCommitmentTest.t.sol -vvv
 forge snapshot
 ```
 
-**329+ smart contract tests, 0 failures.**
+**333+ smart contract tests, 0 failures.**
 
 ### Frontend (Vitest)
 
@@ -852,6 +859,24 @@ cd web && pnpm test:coverage
 - Component tests: `AddressDisplay`, `EmptyState`, `StateChip`, `TierBadge`, `TokenAmount`
 - Hook tests: `useAdmin`, `useCreateEscrow`, `useEscrowActions`, `useEscrowList`, `useFundEscrow`, `useReceivable`, `useUserStats`
 - Utility tests: address formatting, currency formatting, tier calculations
+
+### Frontend E2E (Playwright)
+
+```shell
+# Run all E2E tests
+cd web && pnpm e2e
+
+# Run E2E tests with UI
+cd web && pnpm e2e:ui
+
+# Run E2E tests in headed mode
+cd web && pnpm e2e:headed
+```
+
+**E2E test coverage includes:**
+- `comprehensive.spec.ts` — Full protocol flow tests
+- `dashboard.spec.ts` — Dashboard functionality
+- `escrow.spec.ts` — Escrow creation and management flows
 
 ---
 
@@ -880,38 +905,61 @@ web/src/
 │   │   └── Web3Provider.tsx      # Wagmi/wallet connection
 │   ├── receivable/ReceivableList.tsx  # NFT receivable list
 │   └── shared/                   # Reusable UI components
+│       ├── Accordion.tsx         # Collapsible accordion
 │       ├── AddressDisplay.tsx    # Truncated address with copy
 │       ├── ClientOnly.tsx        # Client-side render wrapper
 │       ├── EmptyState.tsx        # Empty list placeholder
 │       ├── NetworkIndicator.tsx  # Chain/network status
+│       ├── NetworkSelector.tsx   # Network selection dropdown
 │       ├── Skeleton.tsx          # Loading skeleton
 │       ├── StateChip.tsx         # Escrow state badge
 │       ├── TierBadge.tsx         # User tier badge
 │       ├── Toast.tsx             # Notification toast
-│       └── TokenAmount.tsx       # Token value display
+│       ├── TokenAmount.tsx       # Token value display
+│       └── TransactionPreviewModal.tsx  # Transaction preview modal
 ├── hooks/                        # React hooks for smart contract interaction
 │   ├── useAdmin.ts               # Admin operations (KYC, tiers)
 │   ├── useCreateEscrow.ts        # Escrow creation
 │   ├── useEscrowActions.ts       # Fund, confirm, dispute
+│   ├── useEscrowFilters.ts      # Escrow filtering utilities
 │   ├── useEscrowList.ts          # Fetch escrow list
 │   ├── useEscrowRead.ts          # Read escrow details
+│   ├── useERC20FundEscrow.ts    # ERC20 funding specific logic
 │   ├── useFundEscrow.ts          # Fund escrow
+│   ├── useGasEstimate.ts        # Gas estimation
 │   ├── useReceivable.ts          # Receivable NFT operations
+│   ├── useRealTimeBalances.ts    # Real-time token balance updates
+│   ├── useTokenPrice.ts          # Token price fetching
 │   └── useUserStats.ts           # User reputation/tier
 ├── lib/
-│   ├── contracts/addresses.ts     # Contract addresses
-│   └── constants.ts              # Chain config, tiers
-└── test/                         # Vitest test setup
-    └── setup.ts                  # Test utilities
+│   ├── utils.ts                  # Utility functions (formatting, validation)
+│   ├── utils.test.ts             # Utility function tests
+│   ├── wagmi.ts                  # Wagmi configuration
+│   ├── constants.ts              # Chain config, tiers
+│   ├── config/index.ts           # App configuration
+│   ├── contracts/
+│   │   ├── addresses.ts          # Contract addresses
+│   │   ├── config.ts             # Contract configuration
+│   │   └── abis/                # Contract ABIs
+├── types/
+│   └── escrow.ts                 # TypeScript types for escrow
+├── test/                         # Vitest test setup
+│   ├── setup.ts                  # Test utilities
+│   └── mocks/escrow.ts          # Escrow mocks
+└── e2e/                          # Playwright E2E tests
+    ├── comprehensive.spec.ts     # Full protocol flow tests
+    ├── dashboard.spec.ts        # Dashboard functionality
+    └── escrow.spec.ts           # Escrow creation and management
 ```
 
 ### Frontend Tech Stack
 
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **Web3**: Wagmi + viem
 - **Styling**: Tailwind CSS
-- **Testing**: Vitest + React Testing Library
+- **Testing**: Vitest + React Testing Library + Playwright (E2E)
 - **Theme**: Light/dark mode support
+- **E2E Testing**: Playwright
 
 ---
 
@@ -929,7 +977,7 @@ web/src/
 - [x] Multi-signature protocol arbiter (`ProtocolArbiterMultisig`)
 - [x] Progressive deployment tiers (TESTNET through MATURE)
 - [x] Automated deployment script with environment configuration
-- [x] 329+ smart contract tests with full feature coverage
+- [x] 333+ smart contract tests with full feature coverage
 - [x] Emergency pause mechanism (OpenZeppelin Pausable)
 - [x] Security hardening: configurable bounds, mutable admin addresses, settled NFT locks, oracle merkle root verification, multisig governance actions
 - [x] UCP 600 / URDTT trade standards compliance reference
@@ -937,6 +985,7 @@ web/src/
 - [x] Full Next.js frontend with components, hooks, pages
 - [x] Frontend unit tests with Vitest (components + hooks)
 - [x] Integration test (`IntegrationEscrowLifecycle.t.sol`)
+- [x] Frontend E2E tests with Playwright
 - [ ] Testnet deployment (Sepolia / Base Sepolia)
 - [ ] Third-party security audit
 - [ ] Mainnet deployment
