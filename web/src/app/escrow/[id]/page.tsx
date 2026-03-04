@@ -276,7 +276,7 @@ export default function EscrowDetailPage() {
                   <span style={{ 
                     fontFamily: "'IBM Plex Mono', monospace", 
                     fontSize: "0.75rem", 
-                    color: escrow.tradeDataHash !== "0x0000000000000000000000000000000000000000000000000000000000000000" ? "var(--text-secondary)" : "var(--text-muted)",
+                    color: escrow.tradeDataHash !== "0x0" ? "var(--text-secondary)" : "var(--text-muted)",
                     wordBreak: "break-all"
                   }}>
                     {escrow.tradeDataHash}
