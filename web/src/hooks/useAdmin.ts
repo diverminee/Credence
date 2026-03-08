@@ -153,7 +153,7 @@ export function useAdmin() {
 }
 
 // Hook to check if current user is owner
-export function useIsOwner() {
+export function useIsOwner(): boolean {
   const { address } = useAccount();
   const chainId = useChainId();
   const contract = getEscrowContract(chainId);
@@ -164,7 +164,49 @@ export function useIsOwner() {
     query: { enabled: !!contract.address },
   });
 
-  return address && owner && address.toLowerCase() === (owner as string).toLowerCase();
+  if (!address || !owner) return false;
+  return address.toLowerCase() === (owner as string).toLowerCase();
+}
+
+// Hook to check KYC status for an address
+export function useKYCStatus(address?: `0x${string}`): {
+  isKYCApproved: boolean;
+  isKYCRequested: boolean;
+  getStatus: (isUserOwner: boolean) => string;
+} {
+  const chainId = useChainId();
+  const contract = getEscrowContract(chainId);
+
+  const { data: kycApproved } = useReadContract({
+    address: contract?.address,
+    abi: contract?.abi,
+    functionName: "kycApproved",
+    args: address ? [address] : undefined,
+    query: { enabled: !!contract?.address && !!address },
+  });
+
+  const { data: kycRequested } = useReadContract({
+    address: contract?.address,
+    abi: contract?.abi,
+    functionName: "kycRequested",
+    args: address ? [address] : undefined,
+    query: { enabled: !!contract?.address && !!address },
+  });
+
+  const isKYCApproved: boolean = kycApproved === true;
+  const isKYCRequested: boolean = kycRequested === true;
+
+  return {
+    isKYCApproved,
+    isKYCRequested,
+    // Helper to get display status
+    getStatus: (isUserOwner: boolean): string => {
+      if (isUserOwner) return "Owner";
+      if (isKYCApproved) return "Verified";
+      if (isKYCRequested) return "Pending";
+      return "Not Verified";
+    },
+  };
 }
 
 // Hook to get contract state
