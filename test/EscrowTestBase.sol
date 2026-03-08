@@ -37,7 +37,7 @@ abstract contract EscrowTestBase is Test {
 
     function setUp() public virtual {
         oracle = new MockOracle();
-        token = new MockERC20("Test Token", "TST");
+        token = new MockERC20("Test Token", "TST", 18);
         escrow = new TradeInfraEscrow(address(oracle), feeRecipient, protocolArb);
 
         // KYC-approve the standard test actors so createEscrow works.

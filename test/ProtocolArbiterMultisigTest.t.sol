@@ -24,7 +24,7 @@ contract ProtocolArbiterMultisigTest is EscrowTestBase {
         // Deploy escrow with signer1 as temporary protocolArbiter placeholder
         // Then deploy multisig and use it
         oracle = new MockOracle();
-        token = new MockERC20("Test Token", "TST");
+        token = new MockERC20("Test Token", "TST", 18);
 
         // We need to deploy escrow first, then create multisig
         // protocolArb will be replaced by multisig in tests that need it
