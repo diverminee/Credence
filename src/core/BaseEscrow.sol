@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ITradeOracle} from "../interfaces/ITradeOracle.sol";
 import {IReceivableMinter} from "../interfaces/IReceivableMinter.sol";
 import {EscrowTypes} from "../libraries/EscrowTypes.sol";
@@ -16,6 +17,7 @@ import {ReputationLibrary} from "../libraries/ReputationLibrary.sol";
 /// @dev SECURITY FIXES: Added KYC contract check, timelocks, batch limits, fee snapshot, precision handling
 abstract contract BaseEscrow is ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     // ============ State Variables ============
     ITradeOracle public immutable oracle;
@@ -37,9 +39,15 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
 
     // KYC
     mapping(address => bool) public kycApproved;
+    mapping(address => bool) public kycRequested;
+    EnumerableSet.AddressSet internal kycApprovedAddresses;
+    EnumerableSet.AddressSet internal kycRequestedAddresses;
 
     // Token allowlist
     mapping(address => bool) public approvedTokens;
+
+    // Token-specific minimum amounts (address(0) = ETH default)
+    mapping(address => uint256) public tokenMinAmounts;
 
     // Deployment tier
     EscrowTypes.DeploymentTier public currentTier;
@@ -140,6 +148,7 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
     event EscrowSettled(uint256 indexed escrowId, address indexed recipient, uint256 amount, uint256 fee);
     event EscrowRefunded(uint256 indexed escrowId, address indexed recipient, uint256 amount);
     event KYCStatusUpdated(address indexed user, bool status);
+    event KYCRequested(address indexed user);
     event ApprovedTokenAdded(address indexed token);
     event ApprovedTokenRemoved(address indexed token);
     event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
@@ -149,6 +158,7 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
     event ReceivableMintFailed(uint256 indexed escrowId, bytes reason);
     event ReceivableMinterUpdated(address indexed oldMinter, address indexed newMinter);
     event MinEscrowAmountUpdated(uint256 oldAmount, uint256 newAmount);
+    event TokenMinAmountUpdated(address indexed token, uint256 minAmount);
     event TierLimitsUpdated(uint256 launch, uint256 growth, uint256 mature);
     event FeeRecipientUpdated(address indexed oldRecipient, address indexed newRecipient);
     event ProtocolArbiterUpdated(address indexed oldArbiter, address indexed newArbiter);
@@ -268,11 +278,35 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
 
     // ============ Admin Functions ============
 
+    /// @notice Request KYC approval (user calls this to start the process)
+    function requestKYC() external {
+        require(!kycApproved[msg.sender], "Already KYC approved");
+        require(!kycRequested[msg.sender], "KYC already requested");
+        
+        kycRequested[msg.sender] = true;
+        kycRequestedAddresses.add(msg.sender);
+        emit KYCRequested(msg.sender);
+    }
+
     /// @notice Set KYC approval status for a single user
     /// @param _user Address to update
     /// @param _status True to approve, false to revoke
     function setKYCStatus(address _user, bool _status) external onlyOwner {
         kycApproved[_user] = _status;
+        
+        // Update EnumerableSet
+        if (_status) {
+            kycApprovedAddresses.add(_user);
+        } else {
+            kycApprovedAddresses.remove(_user);
+        }
+        
+        // Clear request if approved
+        if (_status && kycRequested[_user]) {
+            kycRequested[_user] = false;
+            kycRequestedAddresses.remove(_user);
+        }
+        
         emit KYCStatusUpdated(_user, _status);
     }
 
@@ -332,6 +366,27 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
         uint256 oldAmount = minEscrowAmount;
         minEscrowAmount = _min;
         emit MinEscrowAmountUpdated(oldAmount, _min);
+    }
+
+    /// @notice Set token-specific minimum amount
+    /// @dev Allows setting different minimums for different tokens (e.g., $10 USDC vs $10 ETH)
+    /// @param _token Token address (address(0) for ETH)
+    /// @param _minAmount Minimum amount for this token (in token decimals)
+    function setTokenMinAmount(address _token, uint256 _minAmount) external onlyOwner {
+        tokenMinAmounts[_token] = _minAmount;
+        emit TokenMinAmountUpdated(_token, _minAmount);
+    }
+
+    /// @notice Get the effective minimum amount for a given token
+    /// @param _token Token address (address(0) for ETH)
+    /// @return The minimum amount in token decimals
+    function getEffectiveMinAmount(address _token) external view returns (uint256) {
+        uint256 tokenMin = tokenMinAmounts[_token];
+        if (tokenMin > 0) {
+            return tokenMin;
+        }
+        // Default: use minEscrowAmount (in ETH/wei)
+        return minEscrowAmount;
     }
 
     /// @notice Set tier ceiling limits (must maintain launch <= growth <= mature)
@@ -436,8 +491,23 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
         if (_users.length > MAX_BATCH_KYC_SIZE) revert BatchSizeTooLarge();
         
         for (uint256 i = 0; i < _users.length; i++) {
-            kycApproved[_users[i]] = _status;
-            emit KYCStatusUpdated(_users[i], _status);
+            address user = _users[i];
+            kycApproved[user] = _status;
+            
+            // Update EnumerableSet
+            if (_status) {
+                kycApprovedAddresses.add(user);
+            } else {
+                kycApprovedAddresses.remove(user);
+            }
+            
+            // Clear request if approved
+            if (_status && kycRequested[user]) {
+                kycRequested[user] = false;
+                kycRequestedAddresses.remove(user);
+            }
+            
+            emit KYCStatusUpdated(user, _status);
         }
     }
 
@@ -478,7 +548,14 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
             revert InvalidAddresses();
         }
         if (_amount == 0) revert InvalidAmount();
-        if (_amount < minEscrowAmount) revert AmountBelowMinimum();
+        
+        // Use token-specific minimum if set, otherwise use global minimum
+        uint256 effectiveMin = tokenMinAmounts[_token];
+        if (effectiveMin == 0) {
+            effectiveMin = minEscrowAmount;
+        }
+        if (_amount < effectiveMin) revert AmountBelowMinimum();
+        
         if (_amount > maxEscrowAmount) revert AmountExceedsMaximum();
         if (msg.sender == _seller) revert SellerCannotBeBuyer();
         if (_arbiter == msg.sender) revert ArbiterCannotBeBuyer();
@@ -689,5 +766,37 @@ abstract contract BaseEscrow is ReentrancyGuard, Pausable {
     /// @return Token ID (0 if no receivable was minted)
     function getReceivableTokenId(uint256 _escrowId) external view returns (uint256) {
         return escrowToReceivableTokenId[_escrowId];
+    }
+
+    /// @notice Get all KYC approved addresses
+    /// @return Array of approved addresses
+    function getKYCApprovedAddresses() external view returns (address[] memory) {
+        address[] memory addresses = new address[](kycApprovedAddresses.length());
+        for (uint256 i = 0; i < kycApprovedAddresses.length(); i++) {
+            addresses[i] = kycApprovedAddresses.at(i);
+        }
+        return addresses;
+    }
+
+    /// @notice Get count of KYC approved addresses
+    /// @return Number of approved addresses
+    function getKYCApprovedCount() external view returns (uint256) {
+        return kycApprovedAddresses.length();
+    }
+
+    /// @notice Get all pending KYC requests
+    /// @return Array of addresses with pending requests
+    function getPendingKYCRequests() external view returns (address[] memory) {
+        address[] memory addresses = new address[](kycRequestedAddresses.length());
+        for (uint256 i = 0; i < kycRequestedAddresses.length(); i++) {
+            addresses[i] = kycRequestedAddresses.at(i);
+        }
+        return addresses;
+    }
+
+    /// @notice Get count of pending KYC requests
+    /// @return Number of pending requests
+    function getPendingKYCRequestCount() external view returns (uint256) {
+        return kycRequestedAddresses.length();
     }
 }
