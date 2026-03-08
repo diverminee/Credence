@@ -63,17 +63,26 @@ function CreateEscrowModal({
     return escrowCount > 0 ? BigInt(escrowCount) + 1n : 1n;
   }, [escrowCount]);
 
-  // Helper function to parse amount to Wei
+  // Helper function to parse amount to Wei - uses string manipulation to avoid floating point issues
   const parseAmountToWei = (tokenAddr: string, amountStr: string): bigint | null => {
     const tok = TOKENS.find(t => t.address === tokenAddr) || TOKENS[0];
     try {
       const decimals = Number(tok.decimals);
-      const value = parseFloat(amountStr);
-      if (isNaN(value) || value <= 0) return null;
       if (decimals === 18) {
         return parseEther(amountStr);
       }
-      return BigInt(Math.floor(value * 10 ** decimals));
+      // For non-18 decimals, use string manipulation to avoid floating point errors
+      const parts = amountStr.split('.');
+      const wholePart = parts[0];
+      const fracPart = parts[1] || '';
+      
+      // Pad or truncate fractional part to match decimals
+      const paddedFrac = fracPart.padEnd(decimals, '0').slice(0, decimals);
+      const combined = wholePart + paddedFrac;
+      
+      // Remove leading zeros
+      const trimmed = combined.replace(/^0+/, '') || '0';
+      return BigInt(trimmed);
     } catch (e) {
       return null;
     }
@@ -128,18 +137,25 @@ function CreateEscrowModal({
 
   const selectedToken = TOKENS.find(t => t.address === token) || TOKENS[0];
 
-  // Parse amount based on token decimals
+  // Parse amount based on token decimals - uses string manipulation to avoid floating point issues
   const getAmountInWei = () => {
     try {
       const decimals = Number(selectedToken.decimals);
-      const value = parseFloat(amount);
-      if (isNaN(value) || value <= 0) return null;
-      // Convert to proper units
       if (decimals === 18) {
         return parseEther(amount);
       }
-      // For USDC/USDT (6 decimals)
-      return BigInt(Math.floor(value * 10 ** decimals));
+      // For non-18 decimals (USDC/USDT), use string manipulation to avoid floating point errors
+      const parts = amount.split('.');
+      const wholePart = parts[0];
+      const fracPart = parts[1] || '';
+      
+      // Pad or truncate fractional part to match decimals
+      const paddedFrac = fracPart.padEnd(decimals, '0').slice(0, decimals);
+      const combined = wholePart + paddedFrac;
+      
+      // Remove leading zeros
+      const trimmed = combined.replace(/^0+/, '') || '0';
+      return BigInt(trimmed);
     } catch (e) {
       return null;
     }
@@ -209,7 +225,15 @@ function CreateEscrowModal({
   };
 
   const handleConfirm = () => {
+    // DEBUG: Log amount parsing details
+    console.log('[CreateEscrow] handleConfirm:', {
+      amount,
+      token,
+      selectedToken: selectedToken.symbol,
+      decimals: selectedToken.decimals,
+    });
     const amountWei = getAmountInWei();
+    console.log('[CreateEscrow] amountWei:', amountWei?.toString());
     if (!amountWei || !seller || !arbiter || !tradeId) return;
 
     if (mode === EscrowMode.PAYMENT_COMMITMENT) {

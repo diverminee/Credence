@@ -1,6 +1,6 @@
 "use client";
 
-import { useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { getEscrowContract } from "@/lib/contracts/config";
 import { EscrowMode } from "@/types/escrow";
 
@@ -46,13 +46,49 @@ export function useCreateEscrow(chainId: number) {
       return "Transaction failed due to gas estimation issues. This may be because: (1) KYC verification is required, (2) The contract is paused, or (3) The seller hasn't completed KYC. Please ensure you and the seller have completed KYC verification.";
     }
 
-    // Handle other common errors
-    if (message.includes("NotKYCApproved")) {
-      return "KYC verification is required to create an escrow. Please complete your KYC first.";
+    // Handle AmountBelowMinimum error
+    if (message.includes("AmountBelowMinimum") || message.includes("0x2fcd1a0f")) {
+      return "The escrow amount is below the minimum required. Please increase the amount and try again. Minimum amounts may vary by token - please check the documentation for token-specific minimums.";
     }
 
-    if (message.includes("Paused")) {
-      return "Escrow service is temporarily unavailable. Please try again later.";
+    // Handle AmountExceedsMaximum error
+    if (message.includes("AmountExceedsMaximum") || message.includes("0x46d71cf4")) {
+      return "The escrow amount exceeds the maximum allowed. Please reduce the amount and try again.";
+    }
+
+    // Handle NotKYCApproved error
+    if (message.includes("NotKYCApproved") || message.includes("0xdfac5c4a")) {
+      return "KYC verification is required to create an escrow. Please complete KYC approval first. Both the buyer and seller must be KYC approved.";
+    }
+
+    // Handle SellerCannotBeBuyer error
+    if (message.includes("SellerCannotBeBuyer") || message.includes("0x4ac4cd5a")) {
+      return "You cannot be both the buyer and the seller in an escrow.";
+    }
+
+    // Handle ArbiterCannotBeBuyer error
+    if (message.includes("ArbiterCannotBeBuyer") || message.includes("0x4b2a4cd8")) {
+      return "You cannot be the arbiter of an escrow you are creating.";
+    }
+
+    // Handle ArbiterCannotBeSeller error
+    if (message.includes("ArbiterCannotBeSeller") || message.includes("0x5c6d1cdf")) {
+      return "The seller cannot be the arbiter of an escrow.";
+    }
+
+    // Handle ProtocolArbiterCannotBeParty error
+    if (message.includes("ProtocolArbiterCannotBeParty") || message.includes("0x8d5d8c32")) {
+      return "The protocol arbiter cannot be a party to an escrow.";
+    }
+
+    // Handle InvalidAddresses error
+    if (message.includes("InvalidAddresses") || message.includes("0x1476a480")) {
+      return "Invalid address provided. Please check all addresses and try again.";
+    }
+
+    // Handle InvalidAmount error
+    if (message.includes("InvalidAmount") || message.includes("0xad3c4289")) {
+      return "Invalid amount. Please enter a valid escrow amount.";
     }
 
     if (message.includes("User rejected the request")) {
@@ -64,6 +100,15 @@ export function useCreateEscrow(chainId: number) {
   }
 
   function createEscrow(params: CreateEscrowParams) {
+    // DEBUG: Log incoming parameters
+    console.log('[useCreateEscrow] createEscrow called:', {
+      amount: params.amount?.toString(),
+      amountDecimal: Number(params.amount) / 1e6,
+      seller: params.seller,
+      arbiter: params.arbiter,
+      token: params.token,
+    });
+
     if (!contract.address) return;
 
     const isPaymentCommitment =
