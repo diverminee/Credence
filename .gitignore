@@ -24,6 +24,7 @@ docs/
 .env
 .env.deployed
 .env.example
+.env.mocks
 
 # Local-only analysis docs (not committed)
 TRADE_FINANCE_ANALYSIS.md
