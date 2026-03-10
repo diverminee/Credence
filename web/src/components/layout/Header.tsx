@@ -1,13 +1,14 @@
 "use client";
 
-import { useAccount, useDisconnect } from "wagmi";
+import { useAccount, useDisconnect, useSignMessage } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Link from "next/link";
 import { useThemeToggle } from "@/components/providers/ThemeProvider";
 import { NetworkSelector } from "@/components/shared/NetworkSelector";
 import { useIsOwner, useKYCStatus } from "@/hooks/useAdmin";
-import { useKYC } from "@/hooks/useKYC";
+import { useKYC, TOS_MESSAGE } from "@/hooks/useKYC";
 import { useState, useEffect, useRef } from "react";
+import { keccak256, toBytes } from "viem";
 
 // Custom connected account display component
 function AccountDisplay() {
@@ -15,7 +16,8 @@ function AccountDisplay() {
   const { disconnect } = useDisconnect();
   const isOwner = useIsOwner();
   const { isKYCApproved, isKYCRequested } = useKYCStatus(address);
-  const { status, requestKYC, isPending } = useKYC();
+  const { status, attestKYC, tosAccepted, isPending, refetch } = useKYC();
+  const { signMessage, isPending: isSigning } = useSignMessage();
   const [mounted, setMounted] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -56,6 +58,47 @@ function AccountDisplay() {
     disconnect();
     setIsDropdownOpen(false);
   };
+
+  // Handle self-attestation KYC via ToS signature
+  const handleAgreeToTerms = async () => {
+    if (!address) return;
+    
+    try {
+      // Sign the ToS message hash (matching the contract's verification)
+      // The contract expects: keccak256("\x19Ethereum Signed Message:\n32" || TOS_MESSAGE_HASH)
+      // Where TOS_MESSAGE_HASH = keccak256(bytes(TOS_MESSAGE))
+      const messageHash = keccak256(toBytes(TOS_MESSAGE));
+      const signableMessage = `\x19Ethereum Signed Message:\n${messageHash.slice(2).length / 2}${messageHash.slice(2)}`;
+      
+      // Sign the message
+      signMessage(
+        { 
+          message: TOS_MESSAGE,
+          account: address,
+        },
+        {
+          onSuccess: (signature) => {
+            // Call attestKYC with the signature
+            attestKYC(signature as `0x${string}`);
+            setIsDropdownOpen(false);
+          },
+        }
+      );
+    } catch (err) {
+      console.error("Failed to sign ToS:", err);
+    }
+  };
+
+  // Determine KYC status for display
+  const getKYCStatusDisplay = () => {
+    if (isOwner === true) return "Owner";
+    if (isKYCApproved === true || status === "verified") return "Verified";
+    if (isKYCRequested === true) return "Pending";
+    return "Not Verified";
+  };
+
+  const isVerifed = isKYCApproved === true || status === "verified";
+  const isProcessing = isPending || isSigning;
 
   return (
     <div className="flex items-center gap-2" ref={dropdownRef}>
@@ -119,7 +162,7 @@ function AccountDisplay() {
         {/* Dropdown Menu */}
         {isDropdownOpen && (
           <div 
-            className="absolute right-0 mt-2 w-56 rounded-lg border shadow-lg z-50"
+            className="absolute right-0 mt-2 w-64 rounded-lg border shadow-lg z-50"
             style={{ 
               backgroundColor: "var(--bg-surface)",
               borderColor: "var(--border-default)",
@@ -129,24 +172,21 @@ function AccountDisplay() {
             <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border-dim)" }}>
               <span className="text-xs" style={{ color: "var(--text-muted)" }}>KYC Status</span>
               <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                {isOwner === true ? "Owner" : isKYCApproved === true ? "Verified" : isKYCRequested === true ? "Pending" : "Not Verified"}
+                {getKYCStatusDisplay()}
               </div>
             </div>
 
-            {/* Request KYC Button - Only show for non-verified, non-owner users */}
-            {isOwner !== true && !isKYCApproved && (
+            {/* Self-Attestation: Agree to Terms - Only show for non-verified, non-owner users */}
+            {isOwner !== true && !isVerifed && (
               <button
-                onClick={() => {
-                  requestKYC();
-                  setIsDropdownOpen(false);
-                }}
-                disabled={isPending}
+                onClick={handleAgreeToTerms}
+                disabled={isProcessing}
                 className="flex items-center gap-3 w-full px-4 py-3 text-left transition-colors"
                 style={{ 
-                  color: isPending ? "var(--text-muted)" : "var(--accent)",
+                  color: isProcessing ? "var(--text-muted)" : "var(--accent)",
                 }}
                 onMouseEnter={(e) => {
-                  if (!isPending) {
+                  if (!isProcessing) {
                     e.currentTarget.style.backgroundColor = "var(--bg-subtle)";
                   }
                 }}
@@ -168,7 +208,7 @@ function AccountDisplay() {
                   <polyline points="9 12 12 15 16 10" />
                 </svg>
                 <span className="text-sm font-medium">
-                  {isPending ? "Processing..." : "Request KYC"}
+                  {isProcessing ? "Signing..." : "Agree to Terms"}
                 </span>
               </button>
             )}
