@@ -109,18 +109,24 @@ contract CentralizedTradeOracle is ITradeOracle {
         // Get document flags if they exist
         bytes32[] storage flags = _documentFlags[tradeDataHash];
         
-        // If document flags exist, verify each one
+        // BUG FIX: If document flags exist, verify each one
+        // flags[0] = invoice, flags[1] = BOL, flags[2] = packing, flags[3] = COO
+        // Each flag should be non-zero (0x01 or similar) for verified documents
         if (flags.length >= 4) {
-            // flags[0] = invoice, flags[1] = BOL, flags[2] = packing, flags[3] = COO
-            // Each flag should be non-zero (0x01 or similar) for verified documents
-            if (flags[0] != 0 && invoiceHash != bytes32(0)) {
-                // Document expected but check it was verified
-            } else if (flags[0] == 0) {
+            // Check invoice if provided and flag exists
+            if (invoiceHash != bytes32(0) && flags[0] == bytes32(0)) {
                 return false;
             }
-            if (flags[1] != 0 && bolHash != bytes32(0)) {
-                // BOL expected but check it was verified
-            } else if (flags[1] == 0) {
+            // Check BOL if provided and flag exists
+            if (bolHash != bytes32(0) && flags[1] == bytes32(0)) {
+                return false;
+            }
+            // Check packing list if provided and flag exists
+            if (packingHash != bytes32(0) && flags[2] == bytes32(0)) {
+                return false;
+            }
+            // Check COO if provided and flag exists
+            if (cooHash != bytes32(0) && flags[3] == bytes32(0)) {
                 return false;
             }
         }
